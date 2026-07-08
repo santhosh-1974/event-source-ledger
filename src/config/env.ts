@@ -9,6 +9,8 @@ const envSchema=z.object({
     DATABASE_HOST:z.string().min(1),
     DATABASE_PORT: z.coerce.number().int().positive(),
     DATABASE_PASSWORD:z.string().min(1),
+    DATABASE_NAME:z.string().min(1),
+    DATABASE_USER:z.string().min(1),
     LOG_LEVEL:z.enum(['debug','info','warn','error','fatal','trace'])
 })
 
