@@ -5,7 +5,6 @@ import compression from "compression";
 import pinoHttp from "pino-http";
 
 import { logger } from "./config/logger";
-import routes from "./routes";
 import { notFound } from "./middleware/notFound";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -20,9 +19,9 @@ app.use(
 app.use(helmet());
 app.use(cors());
 app.use(compression());
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/api/v1", routes);
+//app.use("/api/v1", routes);
 app.use(notFound);
 app.use(errorHandler);
 

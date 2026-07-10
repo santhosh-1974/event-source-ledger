@@ -1,9 +1,9 @@
 import {Pool,PoolClient,QueryResult,QueryResultRow} from "pg"
 import { env } from "./env"
 import {logger} from './logger';
-import { release } from "node:os";
 
 export const pool=new Pool({
+
     host:env.DATABASE_HOST,
     port:env.DATABASE_PORT,
     database:env.DATABASE_NAME,
@@ -22,14 +22,14 @@ pool.on("error", (error) => {
 export async function connectDB():Promise<void>{
     let client:PoolClient|undefined;
     try{
-        const client=await pool.connect();
+        client=await pool.connect(); 
         await client.query("select 1");
-        logger.info("Connected to PostrgreSQL")
+        logger.info("Connected to PostgreSQL")
     }catch(err){
         logger.fatal(err," Failed to connect PostgreSQL")
         process.exit(1);
     }finally{
-        client?.release
+        client?.release();
     }
 }
 export async function disconnectDB():Promise<void>{
