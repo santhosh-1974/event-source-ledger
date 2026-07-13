@@ -53,6 +53,12 @@ export class ValidationError extends ApiError {
   }
 }
 
+export class InsufficientFundsError extends ApiError {
+  constructor(message = "Insufficient funds") {
+    super(message, 409);
+  }
+}
+
 export class InternalServerError extends ApiError {
   constructor(message = "Internal Server Error") {
     super(message, 500, false);

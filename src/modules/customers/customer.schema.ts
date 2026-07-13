@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createCustomerSchema = z.object({
-  fullName: z
+  name: z
     .string()
     .trim()
     .min(3, "Full name must be at least 3 characters")

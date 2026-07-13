@@ -1,10 +1,12 @@
 export type AccountType = "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
 export type AccountCategory = "SYSTEM" | "CUSTOMER";
 
-export interface Account {
+
+export interface BankAccount {
     id: string;
-    name: string;
-    type: AccountType;
-    category: AccountCategory;
+    accountNumber: string;
+    customerId: string;
+    accountType: string;
+    status: string;
     createdAt: Date;
 }

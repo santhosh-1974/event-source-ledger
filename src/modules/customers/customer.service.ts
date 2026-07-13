@@ -4,10 +4,12 @@ import { CreateCustomerInput } from "./customer.schema";
 import { Customer } from "./customer.types";
 
 export async function createCustomer(data: CreateCustomerInput):Promise<Customer> {
+  console.log("2")
   const existingEmail = await findByEmail(data.email);
   if (existingEmail)throw new ConflictError("Email already exists");
   const existingPhone = await findByPhone(data.phone);
   if(existingPhone)throw new ConflictError("Phone number already exists");
+  console.log("3")
   return create(data);
 }
 export async function getCustomerById(customerId: string): Promise<Customer> {
