@@ -1,10 +1,12 @@
 import { Request, Response } from "express";
 import { deposit, getAccountBalance, getAccountTransactions, transfer, withdraw } from "./banking.service";
 import { depositInputSchema, transferInputSchema, withdrawInputSchema } from "./banking.schmea";
+import { IdempotencyRequest } from "../../middleware/idempotency.middleware";
 
 export async function depositHandler(req: Request, res: Response): Promise<void> {
     const data = depositInputSchema.parse(req.body);
-    const result = await deposit(data);
+    const idempotencyKey = (req as IdempotencyRequest).idempotencyKey;
+    const result = await deposit(data, idempotencyKey);
     res.status(201).json({
         success: true,
         data: result,
@@ -13,7 +15,8 @@ export async function depositHandler(req: Request, res: Response): Promise<void>
 
 export async function withdrawHandler(req: Request, res: Response): Promise<void> {
     const data = withdrawInputSchema.parse(req.body);
-    const result = await withdraw(data);
+    const idempotencyKey = (req as IdempotencyRequest).idempotencyKey;
+    const result = await withdraw(data, idempotencyKey);
     res.status(201).json({
         success: true,
         data: result,
@@ -22,7 +25,8 @@ export async function withdrawHandler(req: Request, res: Response): Promise<void
 
 export async function transferHandler(req: Request, res: Response): Promise<void> {
     const data = transferInputSchema.parse(req.body);
-    const result = await transfer(data);
+    const idempotencyKey = (req as IdempotencyRequest).idempotencyKey;
+    const result = await transfer(data, idempotencyKey);
     res.status(201).json({
         success: true,
         data: result,

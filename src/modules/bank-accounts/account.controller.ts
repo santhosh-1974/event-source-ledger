@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { createAccountSchema, updateAccountSchema } from "./account.schema";
-import { createAccount, deleteAccount, getAccountById, getAllAccounts, updateAccount } from "./account.service";
+import { createAccountSchema, updateAccountSchema, updateAccountStatusSchema } from "./account.schema";
+import { createAccount, deleteAccount, getAccountById, getAllAccounts, updateAccount, updateAccountStatus } from "./account.service";
 
 export async function createAccountHandler(req: Request, res: Response): Promise<void> {
     const data = createAccountSchema.parse(req.body);
@@ -44,5 +44,15 @@ export async function deleteAccountHandler(req: Request, res: Response): Promise
     res.status(200).json({
         success: true,
         data: null,
+    });
+}
+
+export async function updateAccountStatusHandler(req: Request, res: Response): Promise<void> {
+    const { accountNumber } = req.params;
+    const data = updateAccountStatusSchema.parse(req.body);
+    const account = await updateAccountStatus(accountNumber as string, data);
+    res.status(200).json({
+        success: true,
+        data: account,
     });
 }

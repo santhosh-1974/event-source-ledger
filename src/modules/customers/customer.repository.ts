@@ -22,7 +22,6 @@ function mapCustomer(row: CustomerRow): Customer {
 }
 
 export async function create(data: CreateCustomerInput, client?: PoolClient): Promise<Customer> {
-    console.log("4")
     const db = client ?? pool;
     const result = await db.query<CustomerRow>(
         `

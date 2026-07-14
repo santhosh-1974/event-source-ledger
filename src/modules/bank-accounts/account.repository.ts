@@ -1,14 +1,14 @@
 import { PoolClient } from "pg";
 import { pool } from "../../database/database";
 import { CreateAccountInput, UpdateAccountInput } from "./account.schema";
-import { BankAccount } from "./account.types";
+import { AccountStatus, AccountType, BankAccount } from "./account.types";
 
 interface BankAccountRow {
     id: string;
     account_number: string;
     customer_id: string;
-    account_type: string;
-    status: string;
+    account_type: AccountType;
+    status: AccountStatus;
     created_at: Date;
 }
 
@@ -18,7 +18,7 @@ function mapBankAccount(row: BankAccountRow): BankAccount {
         accountNumber: row.account_number,
         customerId: row.customer_id,
         accountType: row.account_type,
-        status: row.status,
+        status: row.status as AccountStatus,
         createdAt: row.created_at,
     };
 }
@@ -31,7 +31,7 @@ export async function create(data: CreateAccountInput, client?: PoolClient): Pro
       VALUES ($1, $2, $3, $4)
       RETURNING id, account_number, customer_id, account_type, status, created_at;
     `,
-        [data.name, "00000000-0000-0000-0000-000000000000", data.type, "ACTIVE"]
+        [data.accountNumber, data.customerId, data.accountType, data.status ?? "ACTIVE"]
     );
 
     return mapBankAccount(result.rows[0]);
@@ -52,7 +52,7 @@ export async function findById(id: string, client?: PoolClient): Promise<BankAcc
     return mapBankAccount(result.rows[0]);
 }
 
-export async function findByName(name: string, client?: PoolClient): Promise<BankAccount | null> {
+export async function findByAccountNumber(accountNumber: string, client?: PoolClient): Promise<BankAccount | null> {
     const db = client ?? pool;
     const result = await db.query<BankAccountRow>(
         `
@@ -60,11 +60,15 @@ export async function findByName(name: string, client?: PoolClient): Promise<Ban
       FROM bank_accounts
       WHERE account_number = $1;
     `,
-        [name]
+        [accountNumber]
     );
 
     if (result.rowCount === 0) return null;
     return mapBankAccount(result.rows[0]);
+}
+
+export async function findByName(name: string, client?: PoolClient): Promise<BankAccount | null> {
+    return findByAccountNumber(name, client);
 }
 
 export async function findAll(client?: PoolClient): Promise<BankAccount[]> {
@@ -85,21 +89,21 @@ export async function updateById(id: string, data: UpdateAccountInput, client?: 
     const values: unknown[] = [];
     let index = 1;
 
-    if (data.name !== undefined) {
+    if (data.accountNumber !== undefined) {
         fields.push(`account_number = $${index}`);
-        values.push(data.name);
+        values.push(data.accountNumber);
         index += 1;
     }
 
-    if (data.type !== undefined) {
+    if (data.accountType !== undefined) {
         fields.push(`account_type = $${index}`);
-        values.push(data.type);
+        values.push(data.accountType);
         index += 1;
     }
 
-    if (data.category !== undefined) {
+    if (data.status !== undefined) {
         fields.push(`status = $${index}`);
-        values.push(data.category);
+        values.push(data.status);
         index += 1;
     }
 
@@ -136,28 +140,24 @@ export async function deleteById(id: string, client?: PoolClient): Promise<boole
     return (result.rowCount ?? 0) > 0;
 }
 
-export async function findBankAccountByNumber(accountNumber: string, client?: PoolClient): Promise<BankAccount | null> {
+export async function updateStatus(accountNumber: string, status: AccountStatus, client?: PoolClient): Promise<BankAccount | null> {
     const db = client ?? pool;
     const result = await db.query<BankAccountRow>(
         `
-      SELECT id, account_number, customer_id, account_type, status, created_at
-      FROM bank_accounts
-      WHERE account_number = $1;
+      UPDATE bank_accounts
+      SET status = $1
+      WHERE account_number = $2
+      RETURNING id, account_number, customer_id, account_type, status, created_at;
     `,
-        [accountNumber]
+        [status, accountNumber]
     );
 
     if (result.rowCount === 0) return null;
+    return mapBankAccount(result.rows[0]);
+}
 
-    const row = result.rows[0];
-    return {
-        id: row.id,
-        accountNumber: row.account_number,
-        customerId: row.customer_id,
-        accountType: row.account_type,
-        status: row.status,
-        createdAt: row.created_at,
-    };
+export async function findBankAccountByNumber(accountNumber: string, client?: PoolClient): Promise<BankAccount | null> {
+    return findByAccountNumber(accountNumber, client);
 }
 
 export async function findBankAccountByNumberForUpdate(accountNumber: string, client?: PoolClient): Promise<BankAccount | null> {
@@ -205,7 +205,7 @@ export async function findBankAccountByIdForUpdate(id: string, client?: PoolClie
         accountNumber: row.account_number,
         customerId: row.customer_id,
         accountType: row.account_type,
-        status: row.status,
+        status: row.status as AccountStatus,
         createdAt: row.created_at,
     };
 }

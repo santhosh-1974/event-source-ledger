@@ -59,6 +59,18 @@ export class InsufficientFundsError extends ApiError {
   }
 }
 
+export class AccountFrozenError extends ApiError {
+  constructor(message = "Account is frozen") {
+    super(message, 409);
+  }
+}
+
+export class AccountClosedError extends ApiError {
+  constructor(message = "Account is closed") {
+    super(message, 409);
+  }
+}
+
 export class InternalServerError extends ApiError {
   constructor(message = "Internal Server Error") {
     super(message, 500, false);
