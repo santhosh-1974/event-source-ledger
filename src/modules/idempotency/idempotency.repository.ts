@@ -104,6 +104,40 @@ export async function markFailed(idempotencyKey: string, client?: PoolClient): P
     );
 }
 
+export async function createFailed(
+    input: CreateIdempotencyKeyInput,
+    client?: PoolClient
+): Promise<void> {
+    const db = client ?? pool;
+    await db.query(
+        `
+        INSERT INTO idempotency_keys (idempotency_key, request_hash, endpoint, status, expires_at)
+        VALUES ($1, $2, $3, 'FAILED', $4)
+        ON CONFLICT (idempotency_key) DO NOTHING;
+        `,
+        [input.idempotencyKey, input.requestHash, input.endpoint, input.expiresAt]
+    );
+}
+
+export async function restartFailed(
+    idempotencyKey: string,
+    client?: PoolClient
+): Promise<IdempotencyKeyRecord | null> {
+    const db = client ?? pool;
+    const result = await db.query<IdempotencyKeyRow>(
+        `
+        UPDATE idempotency_keys
+        SET status = 'IN_PROGRESS', response = NULL
+        WHERE idempotency_key = $1
+          AND status = 'FAILED'
+          AND expires_at > NOW()
+        RETURNING id, idempotency_key, request_hash, endpoint, status, response, created_at, expires_at;
+        `,
+        [idempotencyKey]
+    );
+    return result.rowCount === 0 ? null : mapRow(result.rows[0]);
+}
+
 export async function deleteExpired(client?: PoolClient): Promise<number> {
     const db = client ?? pool;
     const result = await db.query(

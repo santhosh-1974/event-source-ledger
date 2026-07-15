@@ -52,9 +52,6 @@ function assertReusableOrThrow(existing: IdempotencyKeyRecord): void {
         throw new ConflictError("Request with this Idempotency-Key is still in progress");
     }
 
-    if (existing.status === "FAILED") {
-        throw new ConflictError("Previous request with this Idempotency-Key failed");
-    }
 }
 
 export function getStoredResponse(existing: IdempotencyKeyRecord): unknown {
@@ -88,6 +85,13 @@ export async function checkOrCreateIdempotencyRecord(
     if (existing) {
         validateEndpoint(existing, endpoint);
         validateRequestHash(existing, requestHash);
+        if (existing.status === "FAILED") {
+            const restarted = await idempotencyRepository.restartFailed(idempotencyKey, client);
+            if (restarted) return { kind: "new" };
+            const concurrent = await idempotencyRepository.findByKey(idempotencyKey, client);
+            if (!concurrent) throw new InternalServerError("Failed to restart idempotency record");
+            return { kind: "existing", record: concurrent };
+        }
         assertReusableOrThrow(existing);
         return { kind: "existing", record: existing };
     }
@@ -123,6 +127,19 @@ export async function completeRequest(idempotencyKey: string, response: unknown,
 
 export async function failRequest(idempotencyKey: string, client?: PoolClient): Promise<void> {
     await idempotencyRepository.markFailed(idempotencyKey, client);
+}
+
+export async function recordFailedRequest(
+    idempotencyKey: string,
+    requestHash: string,
+    endpoint: string
+): Promise<void> {
+    await idempotencyRepository.createFailed({
+        idempotencyKey,
+        requestHash,
+        endpoint,
+        expiresAt: calculateExpiry(),
+    });
 }
 
 export async function cleanupExpiredKeys(): Promise<number> {

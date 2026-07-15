@@ -1,10 +1,15 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import app from "../helpers/app";
 import { query } from "../../src/database/database";
+import { resetDatabase } from "../helpers/database";
 
 const BASE_URL = "/api/v1/customers";
+
+beforeEach(async () => {
+  await resetDatabase();
+});
 
 async function customerCount(): Promise<number> {
   const result = await query<{ count: string }>(

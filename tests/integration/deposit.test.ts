@@ -45,7 +45,7 @@ async function createAccount() {
 
 async function getBalance(accountNumber: string): Promise<number> {
   const response = await request(app).get(
-    `/api/v1/accounts/${accountNumber}/balance`
+    `/api/v1/banking/${accountNumber}/balance`
   );
 
   expect(response.status).toBe(200);
@@ -202,13 +202,13 @@ describe("Deposit API", () => {
     expect(await ledgerEntryCount()).toBe(0);
   });
 
-  it("should reject deposit into FROZEN account", async () => {
+  it("should reject deposit into BLOCKED account", async () => {
     const account = await createAccount();
 
     await query(
       `
       UPDATE bank_accounts
-      SET status='FROZEN'
+      SET status='BLOCKED'
       WHERE account_number=$1
       `,
       [account.accountNumber]

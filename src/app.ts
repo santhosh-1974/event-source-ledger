@@ -8,6 +8,7 @@ import routes from "./routes/index"
 import { logger } from "./config/logger";
 import { notFound } from "./middleware/notFound";
 import { errorHandler } from "./middleware/errorHandler";
+import { healthHandler, readinessHandler } from "./health/health.controller";
 
 const app = express();
 
@@ -22,6 +23,8 @@ app.use(cors());
 app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.get("/health", healthHandler);
+app.get("/ready", readinessHandler);
 app.use("/api/v1", routes);
 app.use(notFound);
 app.use(errorHandler);

@@ -73,7 +73,7 @@ async function withIdempotency<T>(
     await client.query("ROLLBACK");
 
     if (ownsIdempotencyRecord) {
-      await idempotencyService.failRequest(idempotencyKey, client);
+      await idempotencyService.recordFailedRequest(idempotencyKey, requestHash, endpoint);
     }
 
     throw error;
