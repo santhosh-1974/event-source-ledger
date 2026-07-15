@@ -20,6 +20,16 @@ export const transferInputSchema = z.object({
     description: z.string().trim().max(255).optional(),
 });
 
+export const transactionHistoryQuerySchema = z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    sort: z.enum(["asc", "desc"]).default("desc"),
+});
+
+export const balanceQuerySchema = z.object({
+    at: z.string().datetime({ offset: true }).optional(),
+});
+
 export type depositInput = z.infer<typeof depositInputSchema>;
 export type withdrawInput = z.infer<typeof withdrawInputSchema>;
 export type transferInput = z.infer<typeof transferInputSchema>;

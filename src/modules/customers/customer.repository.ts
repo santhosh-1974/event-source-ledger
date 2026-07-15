@@ -14,7 +14,7 @@ interface CustomerRow {
 function mapCustomer(row: CustomerRow): Customer {
     return {
         id: row.id,
-        fullName: row.name,
+        name: row.name,
         email: row.email,
         phone: row.phone,
         createdAt: row.created_at,
@@ -35,7 +35,6 @@ export async function create(data: CreateCustomerInput, client?: PoolClient): Pr
             data.phone,
         ]
     );
-    console.log("5")
     return mapCustomer(result.rows[0]);
 }
 

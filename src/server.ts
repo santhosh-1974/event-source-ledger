@@ -2,14 +2,18 @@ import app from "./app"
 import { connectDB, disconnectDB } from "./database/database"
 import { env } from "./config/env";
 import { logger } from "./config/logger";
+import { startIdempotencyCleanupJob, stopIdempotencyCleanupJob } from "./jobs/idempotencyCleanup.job";
 
 async function bootstrap() {
     try {
         await connectDB();
+        startIdempotencyCleanupJob();
+
         const server = app.listen(env.PORT, () => logger.info(`Server running on http://localhost:${env.PORT}`))
 
         async function shutdown(signal: string) {
             logger.info(`${signal} received.Shutting down`)
+            stopIdempotencyCleanupJob();
             server.close(async () => {
                 await disconnectDB();
                 logger.info("HTTP server closed")

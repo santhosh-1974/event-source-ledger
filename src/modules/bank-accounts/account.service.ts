@@ -1,15 +1,37 @@
 import { ConflictError, NotFoundError } from "../../errors/errors";
-import { create, deleteById, findAll, findById, findByAccountNumber, findByName, updateById, updateStatus } from "./account.repository";
+import { getClient } from "../../database/database";
+import { create, createCustomerLedgerAccount, deleteById, findAll, findById, findByAccountNumber, updateById, updateStatus } from "./account.repository";
 import { CreateAccountInput, UpdateAccountInput, UpdateAccountStatusInput } from "./account.schema";
 import { AccountStatus, BankAccount } from "./account.types";
 
 export async function createAccount(data: CreateAccountInput): Promise<BankAccount> {
-    const existingAccount = await findByName(data.accountNumber);
-    if (existingAccount) {
-        throw new ConflictError("Account number already exists");
-    }
+    const client = await getClient();
+    try {
+        await client.query("BEGIN");
+        const customer = await client.query("SELECT 1 FROM customers WHERE id = $1 FOR KEY SHARE", [data.customerId]);
+        if (customer.rowCount === 0) {
+            throw new NotFoundError("Customer not found.");
+        }
 
-    return create(data);
+        const account = await create(data, client);
+        await createCustomerLedgerAccount(account, client);
+        await client.query("COMMIT");
+        return account;
+    } catch (error: unknown) {
+        await client.query("ROLLBACK");
+        if (isUniqueViolation(error, "bank_accounts_account_number_key")) {
+            throw new ConflictError("Account number already exists");
+        }
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+function isUniqueViolation(error: unknown, constraint: string): boolean {
+    return typeof error === "object" && error !== null &&
+        "code" in error && (error as { code?: string }).code === "23505" &&
+        "constraint" in error && (error as { constraint?: string }).constraint === constraint;
 }
 
 export async function getAccountById(accountId: string): Promise<BankAccount> {

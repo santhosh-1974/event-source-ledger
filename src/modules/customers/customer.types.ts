@@ -1,12 +1,12 @@
 export interface CreateCustomerDTO {
-  fullName: string;
+  name: string;
   email: string;
   phone: string;
 }
 
 export interface Customer {
-  id: string;
-  fullName: string;
+    id: string;
+    name: string;
   email: string;
   phone: string;
   createdAt: Date;

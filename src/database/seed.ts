@@ -7,8 +7,8 @@ async function seed():Promise<void>{
         await query(
         `
             insert into ledger_accounts(name,ledger_type,category)
-            values ('cash','ASSET','SYSTEM'),
-            ('bank revenue','INCOME','SYSTEM'),
+            values ('Cash','ASSET','SYSTEM'),
+            ('Bank Revenue','INCOME','SYSTEM'),
             ('ATM Fees','INCOME','SYSTEM'),
             ('Interest Expense','EXPENSE','SYSTEM')
             on conflict do nothing

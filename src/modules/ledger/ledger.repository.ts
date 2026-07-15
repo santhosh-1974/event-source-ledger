@@ -136,16 +136,18 @@ export async function createLedgerEntry(
 
 export async function calculateLedgerBalance(
     ledgerAccountId: string,
-    client?: PoolClient
+    client?: PoolClient,
+    at?: Date
 ): Promise<string> {
     const db = client ?? pool;
     const result = await db.query<{ balance: string }>(
         `
-    SELECT COALESCE(SUM(CASE WHEN entry_type = 'DEBIT' THEN -amount ELSE amount END), 0) AS balance
+    SELECT COALESCE(SUM(CASE WHEN entry_type = 'DEBIT' THEN -amount ELSE amount END), 0)::numeric(18,2)::text AS balance
     FROM ledger_entries
-    WHERE ledger_account_id = $1;
+    WHERE ledger_account_id = $1
+      AND ($2::timestamptz IS NULL OR created_at <= $2);
     `,
-        [ledgerAccountId]
+        [ledgerAccountId, at ?? null]
     );
 
     return result.rows[0]?.balance ?? "0";
@@ -174,6 +176,7 @@ export async function findTransactionHistory(
     ledgerAccountId: string,
     page: number,
     limit: number,
+    sort: "asc" | "desc" = "desc",
     client?: PoolClient
 ): Promise<transactionHistoryResult> {
     const db = client ?? pool;
@@ -194,6 +197,7 @@ export async function findTransactionHistory(
     const totalRecords = Number(countResult.rows[0]?.total ?? 0);
     const totalPages = Math.max(1, Math.ceil(totalRecords / normalizedLimit));
 
+    const order = sort === "asc" ? "ASC" : "DESC";
     const rows = await db.query<{
         transaction_id: string;
         reference: string;
@@ -213,7 +217,7 @@ export async function findTransactionHistory(
         FROM ledger_entries le
         INNER JOIN transactions t ON t.id = le.transaction_id
         WHERE le.ledger_account_id = $1
-        ORDER BY le.created_at DESC, le.transaction_id DESC
+        ORDER BY le.created_at ${order}, le.transaction_id ${order}
         LIMIT $2 OFFSET $3;
         `,
         [ledgerAccountId, normalizedLimit, offset]

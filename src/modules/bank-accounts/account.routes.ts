@@ -12,9 +12,9 @@ const router = Router();
 
 router.post("/", createAccountHandler);
 router.get("/", getAllAccountsHandler);
+router.patch("/:accountNumber/status", updateAccountStatusHandler);
 router.get("/:accountId", getAccountByIdHandler);
 router.patch("/:accountId", updateAccountHandler);
-router.patch("/:accountNumber/status", updateAccountStatusHandler);
 router.delete("/:accountId", deleteAccountHandler);
 
 export default router;

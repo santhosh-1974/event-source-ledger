@@ -17,6 +17,7 @@ export interface transferResult {
 export interface accountBalanceResult {
     accountNumber: string;
     balance: string;
+    asOf?: string;
 }
 
 export interface transactionHistoryItem {

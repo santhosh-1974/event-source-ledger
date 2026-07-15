@@ -8,6 +8,6 @@ router.post("/deposit", idempotencyMiddleware, depositHandler);
 router.post("/withdraw", idempotencyMiddleware, withdrawHandler);
 router.post("/transfer", idempotencyMiddleware, transferHandler);
 router.get("/:accountNumber/balance", getAccountBalanceHandler);
-router.get("/:accountNumber/transactions", getAccountTransactionsHandler);
+router.get("/:accountNumber/history", getAccountTransactionsHandler);
 
 export default router;

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { deposit, getAccountBalance, getAccountTransactions, transfer, withdraw } from "./banking.service";
-import { depositInputSchema, transferInputSchema, withdrawInputSchema } from "./banking.schmea";
+import { balanceQuerySchema, depositInputSchema, transactionHistoryQuerySchema, transferInputSchema, withdrawInputSchema } from "./banking.schema";
 import { IdempotencyRequest } from "../../middleware/idempotency.middleware";
 
 export async function depositHandler(req: Request, res: Response): Promise<void> {
@@ -36,7 +36,8 @@ export async function transferHandler(req: Request, res: Response): Promise<void
 export async function getAccountBalanceHandler(req: Request, res: Response): Promise<void> {
     const { accountNumber } = req.params;
     const normalizedAccountNumber = Array.isArray(accountNumber) ? accountNumber[0] : accountNumber;
-    const result = await getAccountBalance(normalizedAccountNumber);
+    const { at } = balanceQuerySchema.parse(req.query);
+    const result = await getAccountBalance(normalizedAccountNumber, at ? new Date(at) : undefined);
     res.status(200).json({
         success: true,
         data: result,
@@ -46,9 +47,8 @@ export async function getAccountBalanceHandler(req: Request, res: Response): Pro
 export async function getAccountTransactionsHandler(req: Request, res: Response): Promise<void> {
     const { accountNumber } = req.params;
     const normalizedAccountNumber = Array.isArray(accountNumber) ? accountNumber[0] : accountNumber;
-    const page = Number(req.query.page ?? 1);
-    const limit = Number(req.query.limit ?? 20);
-    const result = await getAccountTransactions(normalizedAccountNumber, page, limit);
+    const { page, limit, sort } = transactionHistoryQuerySchema.parse(req.query);
+    const result = await getAccountTransactions(normalizedAccountNumber, page, limit, sort);
     res.status(200).json({
         success: true,
         data: result,

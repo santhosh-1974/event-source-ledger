@@ -31,7 +31,7 @@ export async function create(data: CreateAccountInput, client?: PoolClient): Pro
       VALUES ($1, $2, $3, $4)
       RETURNING id, account_number, customer_id, account_type, status, created_at;
     `,
-        [data.accountNumber, data.customerId, data.accountType, data.status ?? "ACTIVE"]
+        [data.accountNumber, data.customerId, data.accountType, "ACTIVE"]
     );
 
     return mapBankAccount(result.rows[0]);
@@ -208,6 +208,16 @@ export async function findBankAccountByIdForUpdate(id: string, client?: PoolClie
         status: row.status as AccountStatus,
         createdAt: row.created_at,
     };
+}
+
+export async function createCustomerLedgerAccount(bankAccount: BankAccount, client: PoolClient): Promise<void> {
+    await client.query(
+        `
+        INSERT INTO ledger_accounts (bank_account_id, name, ledger_type, category)
+        VALUES ($1, $2, 'LIABILITY', 'CUSTOMER');
+        `,
+        [bankAccount.id, `Customer account ${bankAccount.accountNumber}`]
+    );
 }
 
 
