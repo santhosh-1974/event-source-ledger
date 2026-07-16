@@ -3,7 +3,9 @@ import helmet from "helmet";
 import cors from "cors";
 import compression from "compression";
 import pinoHttp from "pino-http";
+import swaggerUi from "swagger-ui-express";
 
+import { openApiSpec } from "./docs/openAPI";
 import routes from "./routes/index"
 import { logger } from "./config/logger";
 import { notFound } from "./middleware/notFound";
@@ -26,6 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/health", healthHandler);
 app.get("/ready", readinessHandler);
 app.use("/api/v1", routes);
+app.use( "/api-docs",swaggerUi.serve,swaggerUi.setup(openApiSpec));
 app.use(notFound);
 app.use(errorHandler);
 

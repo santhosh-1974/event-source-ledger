@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { logger } from "../config/logger";
 import { ApiError } from "../errors/errors";
 
-export function errorHandler(err: unknown,req: Request,res: Response,next: NextFunction):void{
+export function errorHandler(err: unknown,req: Request,res: Response,_next: NextFunction):void{
   if (err instanceof ApiError) {
     logger.warn({err,method: req.method,url: req.originalUrl,},err.message);
     res.status(err.statusCode).json({

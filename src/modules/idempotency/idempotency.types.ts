@@ -1,4 +1,3 @@
-import { PoolClient } from "pg";
 
 export type IdempotencyStatus = "IN_PROGRESS" | "COMPLETED" | "FAILED";
 

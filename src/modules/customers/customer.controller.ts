@@ -1,8 +1,8 @@
-import { NextFunction, Request, Response } from "express";
+import {  Request, Response } from "express";
 import { createCustomerSchema } from "./customer.schema";
 import { createCustomer, getAllCustomers, getCustomerById } from "./customer.service";
 
-export async function createCustomerHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function createCustomerHandler(req: Request, res: Response): Promise<void> {
     const data = createCustomerSchema.parse(req.body);
     const customer = await createCustomer(data);
     res.status(201).json({
@@ -11,7 +11,7 @@ export async function createCustomerHandler(req: Request, res: Response, next: N
     });
 }
 
-export async function getCustomerByIdHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getCustomerByIdHandler(req: Request, res: Response): Promise<void> {
     const { customerId } = req.params;
     const customer = await getCustomerById(customerId as string);
     res.status(200).json({
@@ -20,7 +20,7 @@ export async function getCustomerByIdHandler(req: Request, res: Response, next: 
     });
 }
 
-export async function getAllCustomersHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getAllCustomersHandler(req: Request, res: Response): Promise<void> {
     const customers = await getAllCustomers();
     res.status(200).json({
       success: true,
