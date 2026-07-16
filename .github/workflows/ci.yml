@@ -1,0 +1,87 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  backend:
+
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ledger_test
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd="pg_isready -U postgres -d ledger_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      NODE_ENV: test
+
+      PORT: 3001
+
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ledger_test
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+
+      LOG_LEVEL: error
+
+      IDEMPOTENCY_TTL_SECONDS: 3600
+      IDEMPOTENCY_CLEANUP_INTERVAL_MS: 3600000
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Verify TypeScript
+        run: npm run typecheck
+
+      - name: Run ESLint
+        run: npm run lint
+      
+      - name: Build Project
+        run: npm run build
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres -d ledger_test
+          do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+      - name: Run Database Migrations
+        run: npm run migrate:up
+
+      - name: Run Tests
+        run: npm test
