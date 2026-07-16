@@ -10,7 +10,7 @@ import {
 
 const router = Router();
 
-router.post("/create-account", createAccountHandler);
+router.post("/", createAccountHandler);
 router.get("/", getAllAccountsHandler);
 router.patch("/:accountNumber/status", updateAccountStatusHandler);
 router.get("/:accountId", getAccountByIdHandler);

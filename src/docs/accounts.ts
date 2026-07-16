@@ -1,5 +1,5 @@
 export const accountPaths = {
-  "/accounts/create-account": {
+  "/accounts": {
     post: {
       tags: ["Accounts"],
 
@@ -73,6 +73,18 @@ export const accountPaths = {
         },
       },
     },
+
+    get: {
+      tags: ["Accounts"],
+
+      summary: "Get all accounts",
+
+      responses: {
+        "200": {
+          description: "List of accounts",
+        },
+      },
+    },
   },
 
   "/accounts/{accountNumber}": {
@@ -104,20 +116,6 @@ export const accountPaths = {
 
         "404": {
           description: "Account not found",
-        },
-      },
-    },
-  },
-
-  "/accounts": {
-    get: {
-      tags: ["Accounts"],
-
-      summary: "Get all accounts",
-
-      responses: {
-        "200": {
-          description: "List of accounts",
         },
       },
     },
