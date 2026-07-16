@@ -82,15 +82,7 @@ jobs:
             echo "Waiting for PostgreSQL..."
             sleep 2
           done
-      - name: Debug Database Environment
-        run: |
-            echo "NODE_ENV=$NODE_ENV"
-            echo "DATABASE_HOST=$DATABASE_HOST"
-            echo "DATABASE_PORT=$DATABASE_PORT"
-            echo "DATABASE_NAME=$DATABASE_NAME"
-            echo "DATABASE_USER=$DATABASE_USER"
-            echo "DATABASE_URL is configured"
-            
+          
       - name: Run Database Migrations
         run: npm run migrate:up
 
