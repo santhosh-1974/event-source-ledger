@@ -44,6 +44,9 @@ jobs:
       DATABASE_NAME: ledger_test
       DATABASE_USER: postgres
       DATABASE_PASSWORD: postgres
+      # node-pg-migrate loads DATABASE_URL when it is present in .env. Set the
+      # CI value explicitly so it cannot use local development credentials.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ledger_test
 
       LOG_LEVEL: error
 
@@ -86,7 +89,7 @@ jobs:
             echo "DATABASE_PORT=$DATABASE_PORT"
             echo "DATABASE_NAME=$DATABASE_NAME"
             echo "DATABASE_USER=$DATABASE_USER"
-            echo "DATABASE_PASSWORD=$DATABASE_PASSWORD"
+            echo "DATABASE_URL is configured"
             
       - name: Run Database Migrations
         run: npm run migrate:up
