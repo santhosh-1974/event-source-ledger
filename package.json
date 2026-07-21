@@ -7,13 +7,18 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+
     "test": "vitest run",
     "test:watch": "vitest",
+
     "typecheck": "tsc --noEmit",
+
     "migrate:create": "node-pg-migrate create",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
+
     "seed": "tsx src/database/seed.ts",
+    
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

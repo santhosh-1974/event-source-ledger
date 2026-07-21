@@ -15,6 +15,21 @@ export default tseslint.config(
 
   ...tseslint.configs.recommended,
 
+  // k6 injects these globals at runtime; declaring them here keeps the load
+  // scripts linted without treating them as Node.js programs.
+  {
+    files: ["tests/load/**/*.js"],
+
+    languageOptions: {
+      globals: {
+        __ENV: "readonly",
+        __ITER: "readonly",
+        __VU: "readonly",
+        console: "readonly",
+      },
+    },
+  },
+
   {
     files: ["**/*.ts"],
 
