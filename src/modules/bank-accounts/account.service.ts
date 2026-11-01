@@ -34,17 +34,16 @@ function isUniqueViolation(error: unknown, constraint: string): boolean {
         "constraint" in error && (error as { constraint?: string }).constraint === constraint;
 }
 
-export async function getAccountById(accountId: string): Promise<BankAccount> {
+export async function getAccountById(accountId: string, customerId: string): Promise<BankAccount> {
     const account = await findById(accountId);
-    if (!account) {
+    if (!account || account.customerId !== customerId) {
         throw new NotFoundError("Account not found.");
     }
-
     return account;
 }
 
-export async function getAllAccounts(): Promise<BankAccount[]> {
-    return findAll();
+export async function getAllAccounts(customerId: string): Promise<BankAccount[]> {
+    return findAll(customerId);
 }
 
 export async function updateAccount(accountId: string, data: UpdateAccountInput): Promise<BankAccount> {

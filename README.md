@@ -350,7 +350,20 @@ LOG_LEVEL=info
 
 IDEMPOTENCY_TTL_SECONDS=3600
 IDEMPOTENCY_CLEANUP_INTERVAL_MS=3600000
+
+JWT_SECRET=<generate-a-random-secret-at-least-32-characters>
+JWT_EXPIRATION_HOURS=24
 ```
+
+---
+
+# Authentication
+
+Registration is public at `POST /api/v1/auth/register` and creates the customer and password credential in one database transaction. Login is public at `POST /api/v1/auth/login`. Both accept validated JSON; passwords must be 12–72 bytes. Registration expects `name`, `email`, `phone`, and `password`. Login expects `email` and `password`.
+
+Protected API calls require `Authorization: Bearer <token>`. Tokens use HS256, expire after `JWT_EXPIRATION_HOURS` (24 hours by default), and have no refresh-token flow in this phase. Generate a strong secret (at least 32 characters), provide it through `JWT_SECRET`, and never commit it. For example, `openssl rand -base64 48` can generate a value.
+
+Customers can access only their own customer record and accounts. Transfers require ownership of both accounts. The legacy customer-creation route is disabled; customer creation must use registration. Account status changes, edits, and deletion remain disabled because they are administrative operations and no administrator authorization model exists.
 
 ---
 
@@ -414,9 +427,10 @@ npm run lint
 
 | Method | Endpoint |
 |---------|----------|
-| POST | `/api/v1/customers/create-customer` |
-| GET | `/api/v1/customers` |
-| GET | `/api/v1/customers/:customerId` |
+| POST | `/api/v1/auth/register` |
+| POST | `/api/v1/auth/login` |
+| GET | `/api/v1/customers/me` |
+| GET | `/api/v1/customers/:customerId` (own customer only) |
 
 ---
 
@@ -424,9 +438,9 @@ npm run lint
 
 | Method | Endpoint |
 |---------|----------|
-| POST | `/api/v1/accounts/create-account` |
-| GET | `/api/v1/accounts` |
-| GET | `/api/v1/accounts/:accountNumber` |
+| POST | `/api/v1/accounts` (creates for the authenticated customer) |
+| GET | `/api/v1/accounts` (own accounts only) |
+| GET | `/api/v1/accounts/:accountId` (own account only) |
 
 ---
 
@@ -485,13 +499,17 @@ Current test suite:
 
 ---
 
-# Security
+## Security
 
 - Input validation using Zod
 - Parameterized SQL queries
 - ACID database transactions
 - Row-level locking for concurrent operations
 - Idempotent write requests
+- Passwords hashed with bcrypt
+- JWT authentication with environment-configured signing secret and expiry
+- Ownership checks for customer, account, balance, history, transaction, and transfer routes
+- Public health and readiness endpoints return operational status only
 - Centralized error handling
 - Secure HTTP headers using Helmet
 - CORS enabled
@@ -501,8 +519,6 @@ Current test suite:
 
 # Future Improvements
 
-- Authentication & Authorization
-- JWT-based user login
 - Multi-currency support
 - Interest calculation
 - Scheduled payments

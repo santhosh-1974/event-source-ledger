@@ -71,14 +71,16 @@ export async function findByName(name: string, client?: PoolClient): Promise<Ban
     return findByAccountNumber(name, client);
 }
 
-export async function findAll(client?: PoolClient): Promise<BankAccount[]> {
+export async function findAll(customerId: string, client?: PoolClient): Promise<BankAccount[]> {
     const db = client ?? pool;
     const result = await db.query<BankAccountRow>(
         `
       SELECT id, account_number, customer_id, account_type, status, created_at
       FROM bank_accounts
+      WHERE customer_id = $1
       ORDER BY created_at DESC;
-    `
+    `,
+        [customerId]
     );
 
     return result.rows.map(mapBankAccount);

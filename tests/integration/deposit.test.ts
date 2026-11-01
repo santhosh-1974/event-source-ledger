@@ -1,11 +1,11 @@
-import request from "supertest";
+import { requestAsTestUser as request } from "../helpers/auth";
+import { registerTestUser } from "../helpers/auth";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import app from "../helpers/app";
 import { resetDatabase } from "../helpers/database";
 import { query } from "../../src/database/database";
 
-const CUSTOMER_URL = "/api/v1/customers/create-customer";
 const ACCOUNT_URL = "/api/v1/accounts";
 const DEPOSIT_URL = "/api/v1/banking/deposit";
 
@@ -14,17 +14,12 @@ beforeEach(async () => {
 });
 
 async function createCustomer() {
-  const response = await request(app)
-    .post(CUSTOMER_URL)
-    .send({
-      name: "Santhosh",
-      email: "santhosh@gmail.com",
-      phone: "9876543210",
-    });
-
-  expect(response.status).toBe(201);
-
-  return response.body.data;
+  const user = await registerTestUser(app, {
+    name: "Santhosh",
+    email: "santhosh@gmail.com",
+    phone: "9876543210",
+  });
+  return user.customer;
 }
 
 async function createAccount() {

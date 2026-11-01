@@ -15,6 +15,8 @@ const envSchema=z.object({
     LOG_LEVEL:z.enum(['debug','info','warn','error','fatal','trace']),
     IDEMPOTENCY_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
     IDEMPOTENCY_CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(3_600_000),
+    JWT_SECRET: z.string().min(32),
+    JWT_EXPIRATION_HOURS: z.coerce.number().int().positive().default(24),
 })
 
 const parsed=envSchema.safeParse(process.env)

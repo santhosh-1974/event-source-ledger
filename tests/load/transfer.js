@@ -14,7 +14,7 @@ export default function (data) {
   const response = http.post(`${BASE_URL}${API.transfer}`, JSON.stringify({
     fromAccountNumber: pair.fromAccountNumber, toAccountNumber: pair.toAccountNumber,
     amount: '10.00', description: 'k6 load-test transfer',
-  }), { headers: createWriteHeaders(), tags: { operation: 'transfer' } });
+  }), { headers: createWriteHeaders(data.token), tags: { operation: 'transfer' } });
   transferLatency.add(response.timings.duration);
   checkResponse(response, 'transfer', 201, operationSuccess);
   sleepBetween();

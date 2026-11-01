@@ -2,6 +2,7 @@ import { PoolClient } from "pg";
 
 import { env } from "../../src/config/env";
 import { pool, query } from "../../src/database/database";
+import { clearTestAuthentication } from "./auth";
 
 const REQUIRED_TEST_DATABASE = "ledger_test";
 const MIGRATION_TABLE = "pgmigrations";
@@ -105,6 +106,7 @@ export async function seedDatabase(): Promise<void> {
 }
 
 export async function resetDatabase(): Promise<void> {
+  clearTestAuthentication();
   await clearDatabase();
   await seedDatabase();
 }

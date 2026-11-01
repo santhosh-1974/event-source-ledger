@@ -20,14 +20,14 @@ export default function (data) {
 
   // 50% balance, 20% deposit, 15% withdrawal, 15% transfer.
   if (choice < 0.50) {
-    execute(http.get(`${BASE_URL}${API.balance(accountNumber)}`, { headers: createHeaders(), tags: { operation: 'balance' } }), 'balance', 200);
+    execute(http.get(`${BASE_URL}${API.balance(accountNumber)}`, { headers: createHeaders({}, data.token), tags: { operation: 'balance' } }), 'balance', 200);
   } else if (choice < 0.70) {
-    execute(http.post(`${BASE_URL}${API.deposit}`, JSON.stringify({ accountNumber, amount: '10.00' }), { headers: createWriteHeaders(), tags: { operation: 'deposit' } }), 'deposit', 201);
+    execute(http.post(`${BASE_URL}${API.deposit}`, JSON.stringify({ accountNumber, amount: '10.00' }), { headers: createWriteHeaders(data.token), tags: { operation: 'deposit' } }), 'deposit', 201);
   } else if (choice < 0.85) {
-    execute(http.post(`${BASE_URL}${API.withdraw}`, JSON.stringify({ accountNumber, amount: '10.00' }), { headers: createWriteHeaders(), tags: { operation: 'withdraw' } }), 'withdraw', 201);
+    execute(http.post(`${BASE_URL}${API.withdraw}`, JSON.stringify({ accountNumber, amount: '10.00' }), { headers: createWriteHeaders(data.token), tags: { operation: 'withdraw' } }), 'withdraw', 201);
   } else {
     const pair = distinctTransferPair(data);
-    execute(http.post(`${BASE_URL}${API.transfer}`, JSON.stringify({ ...pair, amount: '10.00', description: 'k6 mixed workload transfer' }), { headers: createWriteHeaders(), tags: { operation: 'transfer' } }), 'transfer', 201);
+    execute(http.post(`${BASE_URL}${API.transfer}`, JSON.stringify({ ...pair, amount: '10.00', description: 'k6 mixed workload transfer' }), { headers: createWriteHeaders(data.token), tags: { operation: 'transfer' } }), 'transfer', 201);
   }
   sleepBetween(0.05, 0.3);
 }

@@ -1,11 +1,12 @@
 import { Router } from "express";
-import {createCustomerHandler,getCustomerByIdHandler,getAllCustomersHandler,
-} from "./customer.controller";
+import { getCustomerByIdHandler, getCurrentCustomerHandler } from "./customer.controller";
 
 const router = Router();
 
-router.post("/create-customer", createCustomerHandler);
-router.get("/", getAllCustomersHandler);
+// Customer creation is only available through /auth/register so customer and
+// credentials are committed atomically.
+router.get("/", getCurrentCustomerHandler);
+router.get("/me", getCurrentCustomerHandler);
 router.get("/:customerId", getCustomerByIdHandler);
 
 export default router;

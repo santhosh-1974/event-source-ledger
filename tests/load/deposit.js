@@ -18,7 +18,7 @@ export default function (data) {
   const response = http.post(`${BASE_URL}${API.deposit}`, JSON.stringify({
     accountNumber: accountForVu(data),
     amount: '10.00',
-  }), { headers: createWriteHeaders(), tags: { operation: 'deposit' } });
+  }), { headers: createWriteHeaders(data.token), tags: { operation: 'deposit' } });
 
   depositLatency.add(response.timings.duration);
   checkResponse(response, 'deposit', 201, operationSuccess);

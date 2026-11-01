@@ -1,5 +1,8 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { Shell } from '../components/layout/shell';
+import { RequireAuth } from '../components/auth/RequireAuth';
+import { LoginPage } from '../features/auth/LoginPage';
+import { RegisterPage } from '../features/auth/RegisterPage';
 import { Dashboard } from '../features/dashboard/dashboard';
 import { Customers } from '../features/customers/customers';
 import { Accounts } from '../features/accounts/accounts';
@@ -15,15 +18,15 @@ const router = createBrowserRouter([
     path: '/',
     element: <Shell />,
     children: [
-      { index: true, element: <Dashboard /> },
-      { path: 'customers', element: <Customers /> },
-      { path: 'accounts', element: <Accounts /> },
-      { path: 'deposits', element: <Deposits /> },
-      { path: 'withdrawals', element: <Withdrawals /> },
-      { path: 'transfers', element: <Transfers /> },
-      { path: 'transactions', element: <Transactions /> },
-      { path: 'transactions/:transactionId', element: <TransactionDetail /> },
-      { path: 'ledger', element: <LedgerHistory /> },
+      { index: true, element: <RequireAuth><Dashboard /></RequireAuth> },
+      { path: 'customers', element: <RequireAuth><Customers /></RequireAuth> },
+      { path: 'accounts', element: <RequireAuth><Accounts /></RequireAuth> },
+      { path: 'deposits', element: <RequireAuth><Deposits /></RequireAuth> },
+      { path: 'withdrawals', element: <RequireAuth><Withdrawals /></RequireAuth> },
+      { path: 'transfers', element: <RequireAuth><Transfers /></RequireAuth> },
+      { path: 'transactions', element: <RequireAuth><Transactions /></RequireAuth> },
+      { path: 'transactions/:transactionId', element: <RequireAuth><TransactionDetail /></RequireAuth> },
+      { path: 'ledger', element: <RequireAuth><LedgerHistory /></RequireAuth> },
       {
         path: 'api-docs',
         element: (

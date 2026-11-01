@@ -7,6 +7,7 @@ export default defineConfig({
       setupFiles: ["tests/helpers/setup.ts"],
       env: {
       NODE_ENV: "test",
+      JWT_SECRET: "unit-test-only-signing-secret-never-used-in-production",
     },
     // Shared test DB cannot be truncated safely by parallel workers.
     fileParallelism: false,

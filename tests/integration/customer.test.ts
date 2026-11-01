@@ -5,7 +5,8 @@ import app from "../helpers/app";
 import { query } from "../../src/database/database";
 import { resetDatabase } from "../helpers/database";
 
-const BASE_URL = "/api/v1/customers";
+const AUTH_URL = "/api/v1/auth/register";
+const defaultPassword = "correct-horse-battery-7";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -25,16 +26,17 @@ describe("Customer API", () => {
       name: "Santhosh",
       email: "santhosh@gmail.com",
       phone: "9876543210",
+      password: defaultPassword,
     };
 
     const response = await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send(payload);
 
     expect(response.status).toBe(201);
     expect(response.body.success).toBe(true);
 
-    expect(response.body.data).toMatchObject({
+    expect(response.body.data.customer).toMatchObject({
       name: payload.name,
       email: payload.email,
       phone: payload.phone,
@@ -55,7 +57,11 @@ describe("Customer API", () => {
       [payload.email]
     );
 
-    expect(dbCustomer.rows[0]).toEqual(payload);
+    expect(dbCustomer.rows[0]).toEqual({
+      name: payload.name,
+      email: payload.email,
+      phone: payload.phone,
+    });
   });
 
   it("should not allow duplicate email", async () => {
@@ -63,14 +69,15 @@ describe("Customer API", () => {
       name: "Santhosh",
       email: "santhosh@gmail.com",
       phone: "9876543210",
+      password: defaultPassword,
     };
 
     await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send(payload);
 
     const response = await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send({
         ...payload,
         phone: "9999999999",
@@ -88,14 +95,15 @@ describe("Customer API", () => {
       name: "Santhosh",
       email: "santhosh@gmail.com",
       phone: "9876543210",
+      password: defaultPassword,
     };
 
     await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send(payload);
 
     const response = await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send({
         ...payload,
         email: "another@gmail.com",
@@ -110,11 +118,12 @@ describe("Customer API", () => {
 
   it("should reject invalid email", async () => {
     const response = await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send({
         name: "Santhosh",
         email: "invalid-email",
         phone: "9876543210",
+      password: defaultPassword,
       });
 
     expect(response.status).toBe(400);
@@ -125,7 +134,7 @@ describe("Customer API", () => {
 
   it("should reject invalid phone number", async () => {
     const response = await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send({
         name: "Santhosh",
         email: "santhosh@gmail.com",
@@ -140,7 +149,7 @@ describe("Customer API", () => {
 
   it("should reject missing required fields", async () => {
     const response = await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send({});
 
     expect(response.status).toBe(400);
@@ -151,27 +160,29 @@ describe("Customer API", () => {
 
   it("should trim name, phone and lowercase email", async () => {
     const response = await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send({
         name: "  Santhosh  ",
         email: "SANTHOSH@GMAIL.COM",
         phone: " 9876543210 ",
+        password: defaultPassword,
       });
 
     expect(response.status).toBe(201);
 
-    expect(response.body.data.name).toBe("Santhosh");
-    expect(response.body.data.email).toBe("santhosh@gmail.com");
-    expect(response.body.data.phone).toBe("9876543210");
+    expect(response.body.data.customer.name).toBe("Santhosh");
+    expect(response.body.data.customer.email).toBe("santhosh@gmail.com");
+    expect(response.body.data.customer.phone).toBe("9876543210");
   });
 
   it("should reject name shorter than 3 characters", async () => {
     const response = await request(app)
-      .post(`${BASE_URL}/create-customer`)
+      .post(AUTH_URL)
       .send({
         name: "ab",
         email: "ab@gmail.com",
         phone: "9876543210",
+      password: defaultPassword,
       });
 
     expect(response.status).toBe(400);

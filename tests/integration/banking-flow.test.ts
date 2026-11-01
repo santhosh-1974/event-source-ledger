@@ -1,12 +1,12 @@
 import { performance } from "node:perf_hooks";
-import request from "supertest";
+import { requestAsTestUser as request } from "../helpers/auth";
+import { currentTestCustomerId, registerTestUser } from "../helpers/auth";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import app from "../helpers/app";
 import { resetDatabase } from "../helpers/database";
 import { query } from "../../src/database/database";
 
-const CUSTOMER_URL = "/api/v1/customers/create-customer";
 const ACCOUNT_URL = "/api/v1/accounts";
 const DEPOSIT_URL = "/api/v1/banking/deposit";
 const WITHDRAW_URL = "/api/v1/banking/withdraw";
@@ -38,12 +38,8 @@ beforeEach(async () => {
 });
 
 async function createCustomer(name: string, email: string, phone: string): Promise<CustomerResponse> {
-  const response = await request(app)
-    .post(CUSTOMER_URL)
-    .send({ name, email, phone });
-
-  expect(response.status).toBe(201);
-  return response.body.data as CustomerResponse;
+  const user = await registerTestUser(app, { name, email, phone });
+  return user.customer;
 }
 
 async function createSavingsAccount(
@@ -52,7 +48,7 @@ async function createSavingsAccount(
 ): Promise<AccountResponse> {
   const response = await request(app)
     .post(ACCOUNT_URL)
-    .send({ customerId, accountNumber, accountType: "SAVINGS" });
+    .send({ customerId: currentTestCustomerId(), accountNumber, accountType: "SAVINGS" });
 
   expect(response.status).toBe(201);
   return response.body.data as AccountResponse;

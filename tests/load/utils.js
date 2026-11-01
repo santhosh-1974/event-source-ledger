@@ -10,12 +10,16 @@ export function createIdempotencyKey() {
   });
 }
 
-export function createHeaders(extraHeaders = {}) {
-  return { ...COMMON_HEADERS, ...extraHeaders };
+export function createHeaders(extraHeaders = {}, token = '') {
+  return {
+    ...COMMON_HEADERS,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extraHeaders,
+  };
 }
 
-export function createWriteHeaders() {
-  return createHeaders({ 'Idempotency-Key': createIdempotencyKey() });
+export function createWriteHeaders(token = '') {
+  return createHeaders({ 'Idempotency-Key': createIdempotencyKey() }, token);
 }
 
 export function randomInt(minimum, maximum) {
@@ -68,40 +72,38 @@ function digits(length) {
 
 export function provisionFundedAccounts(accountCount, historyEntries = 1) {
   const runToken = `${Date.now()}${digits(5)}`.slice(-12);
+  const customer = setupRequest('POST', API.register, {
+    name: 'K6 Load Test Customer',
+    email: `k6-${runToken}@example.test`,
+    phone: `7${runToken.slice(-6)}001`,
+    password: 'k6-load-test-only-password',
+  }, createHeaders()).json('data');
+  const customerId = customer.customer.id;
   const accounts = [];
 
   for (let index = 0; index < accountCount; index += 1) {
     const token = `${runToken}${String(index).padStart(3, '0')}`;
-    const customer = setupRequest('POST', API.customers, {
-      name: `K6 Load Account ${index}`,
-      email: `k6-${token}@example.test`,
-      // This is exactly ten digits, as required by the customer schema.
-      phone: `7${runToken.slice(-6)}${String(index).padStart(3, '0')}`,
-    }, createHeaders()).json('data');
-
-    // Account numbers are strings in this API; this stable run token eliminates
-    // random collisions while remaining within the schema's 20-character limit.
     const accountNumber = `K6${token}`;
     setupRequest('POST', API.accounts, {
-      customerId: customer.id,
+      customerId,
       accountNumber,
       accountType: 'SAVINGS',
-    }, createHeaders());
+    }, createHeaders({}, customer.token));
 
     // The opening deposit provides a large withdrawal/transfer buffer.
     setupRequest('POST', API.deposit, {
       accountNumber,
       amount: INITIAL_ACCOUNT_BALANCE,
-    }, createWriteHeaders());
+    }, createWriteHeaders(customer.token));
 
     // Extra events let the history script exercise non-trivial pages.
     for (let event = 1; event < historyEntries; event += 1) {
-      setupRequest('POST', API.deposit, { accountNumber, amount: '1.00' }, createWriteHeaders());
+      setupRequest('POST', API.deposit, { accountNumber, amount: '1.00' }, createWriteHeaders(customer.token));
     }
     accounts.push(accountNumber);
   }
 
-  return { accounts };
+  return { accounts, token: customer.token };
 }
 
 export function accountForVu(data, offset = 0) {

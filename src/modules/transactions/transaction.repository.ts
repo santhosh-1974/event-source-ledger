@@ -50,11 +50,22 @@ export async function findByReference(reference: string, client?: PoolClient): P
     return result.rowCount === 0 ? null : mapTransaction(result.rows[0]);
 }
 
-export async function findDetailsById(id: string, client?: PoolClient): Promise<TransactionDetails | null> {
+export async function findDetailsById(id: string, customerId: string, client?: PoolClient): Promise<TransactionDetails | null> {
     const db = client ?? pool;
     const transactionResult = await db.query<transactionRow>(
-        "SELECT id, reference, description, created_at FROM transactions WHERE id = $1",
-        [id]
+        `
+        SELECT id, reference, description, created_at
+        FROM transactions t
+        WHERE id = $1
+          AND EXISTS (
+            SELECT 1
+            FROM ledger_entries le
+            INNER JOIN ledger_accounts la ON la.id = le.ledger_account_id
+            INNER JOIN bank_accounts ba ON ba.id = la.bank_account_id
+            WHERE le.transaction_id = t.id AND ba.customer_id = $2
+          )
+        `,
+        [id, customerId]
     );
 
     if (transactionResult.rowCount === 0) return null;
@@ -82,10 +93,12 @@ export async function findDetailsById(id: string, client?: PoolClient): Promise<
           le.created_at
         FROM ledger_entries le
         INNER JOIN ledger_accounts la ON la.id = le.ledger_account_id
+        LEFT JOIN bank_accounts ba ON ba.id = la.bank_account_id
         WHERE le.transaction_id = $1
+          AND (la.category = 'SYSTEM' OR ba.customer_id = $2)
         ORDER BY le.created_at ASC, le.id ASC;
         `,
-        [id]
+        [id, customerId]
     );
     const entries: TransactionDetailEntry[] = entryResult.rows.map((row) => ({
         id: row.id,

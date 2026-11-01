@@ -14,7 +14,7 @@ export function setup() { return provisionFundedAccounts(ACCOUNT_COUNT); }
 export default function (data) {
   const response = http.post(`${BASE_URL}${API.withdraw}`, JSON.stringify({
     accountNumber: accountForVu(data), amount: '10.00',
-  }), { headers: createWriteHeaders(), tags: { operation: 'withdraw' } });
+  }), { headers: createWriteHeaders(data.token), tags: { operation: 'withdraw' } });
   withdrawLatency.add(response.timings.duration);
   checkResponse(response, 'withdraw', 201, operationSuccess);
   sleepBetween();

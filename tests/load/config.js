@@ -6,8 +6,7 @@ export const DURATION = __ENV.DURATION || '1m';
 export const ACCOUNT_COUNT = Number(__ENV.ACCOUNT_COUNT || 20);
 export const INITIAL_ACCOUNT_BALANCE = __ENV.INITIAL_ACCOUNT_BALANCE || '10000000.00';
 
-// The API currently has no authentication middleware. Keep these headers in one
-// place so an authentication header can be added consistently if that changes.
+// Shared API headers; workload helpers add the registered customer's bearer token.
 export const COMMON_HEADERS = {
   Accept: 'application/json',
   'Content-Type': 'application/json',
@@ -22,7 +21,7 @@ export const THRESHOLDS = {
 };
 
 export const API = {
-  customers: '/api/v1/customers/create-customer',
+  register: '/api/v1/auth/register',
   accounts: '/api/v1/accounts',
   deposit: '/api/v1/banking/deposit',
   withdraw: '/api/v1/banking/withdraw',

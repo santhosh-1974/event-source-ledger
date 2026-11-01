@@ -11,7 +11,7 @@ export const options = { vus: VUS, duration: DURATION, thresholds: { ...THRESHOL
 export function setup() { return provisionFundedAccounts(ACCOUNT_COUNT); }
 
 export default function (data) {
-  const response = http.get(`${BASE_URL}${API.balance(accountForVu(data))}`, { headers: createHeaders(), tags: { operation: 'balance' } });
+  const response = http.get(`${BASE_URL}${API.balance(accountForVu(data))}`, { headers: createHeaders({}, data.token), tags: { operation: 'balance' } });
   balanceLatency.add(response.timings.duration);
   checkResponse(response, 'balance', 200, operationSuccess);
   sleepBetween(0.02, 0.15);

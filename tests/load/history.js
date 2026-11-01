@@ -15,7 +15,7 @@ export default function (data) {
   const page = randomInt(1, 5);
   const sort = Math.random() < 0.5 ? 'asc' : 'desc';
   const url = `${BASE_URL}${API.history(accountForVu(data))}?page=${page}&limit=${limit}&sort=${sort}`;
-  const response = http.get(url, { headers: createHeaders(), tags: { operation: 'history' } });
+  const response = http.get(url, { headers: createHeaders({}, data.token), tags: { operation: 'history' } });
   historyLatency.add(response.timings.duration);
   checkResponse(response, 'history', 200, operationSuccess);
   sleepBetween(0.05, 0.25);

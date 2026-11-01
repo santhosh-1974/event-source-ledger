@@ -4,6 +4,6 @@ import { getTransactionDetails } from "./transaction.service";
 
 export async function getTransactionDetailsHandler(req: Request, res: Response): Promise<void> {
   const { transactionId } = transactionParamsSchema.parse(req.params);
-  const transaction = await getTransactionDetails(transactionId);
+  const transaction = await getTransactionDetails(transactionId, req.auth!.customerId);
   res.status(200).json({ success: true, data: transaction });
 }
