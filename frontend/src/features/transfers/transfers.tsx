@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient, ApiError } from '../../lib/api-client';
+import { api, ApiError } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -20,27 +20,71 @@ export function Transfers() {
   const [result, setResult] = useState<{ transactionId: string; reference: string } | null>(null);
   const queryClient = useQueryClient();
 
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+
   const transferMutation = useMutation({
     mutationFn: ({ data, idempotencyKey }: { data: TransferInput; idempotencyKey: string }) =>
-      apiClient.transfer(data, idempotencyKey),
+      api.transfer(data, idempotencyKey),
     onSuccess: (data) => {
       setResult(data);
+      setValidationError(null);
+      setIdempotencyKey(null);
+      setShowConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['balance'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    },
+    onError: () => {
+      // ensure validation error does not persist on server error
+      setValidationError(null);
     },
   });
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setResult(null);
-
-    if (formData.fromAccountNumber === formData.toAccountNumber) {
-      alert('Source and destination accounts must be different');
+    // client‑side validation
+    if (!formData.fromAccountNumber) {
+      setValidationError('Source account number is required');
       return;
     }
+    if (!formData.toAccountNumber) {
+      setValidationError('Destination account number is required');
+      return;
+    }
+    if (formData.fromAccountNumber === formData.toAccountNumber) {
+      setValidationError('Source and destination accounts must be different');
+      return;
+    }
+    if (!formData.amount) {
+      setValidationError('Amount is required');
+      return;
+    }
+    // Validate amount as decimal string (up to 2 decimal places, > 0)
+    const amountRegex = /^\d+(\.\d{1,2})?$/;
+    if (!amountRegex.test(formData.amount) || Number(formData.amount) <= 0) {
+      setValidationError('Invalid amount format');
+      return;
+    }
+    setValidationError(null);
+    // generate idempotency key for this attempt if not already set
+    if (!idempotencyKey) {
+      setIdempotencyKey(uuidv4());
+    }
+    setShowConfirm(true);
+  };
 
-    const idempotencyKey = uuidv4();
+  const handleConfirm = () => {
+    if (!idempotencyKey) return;
     transferMutation.mutate({ data: formData, idempotencyKey });
+    // UI will be updated in onSuccess / onError
+  };
+
+  const handleCancel = () => {
+    // keep the idempotency key so a retry reuses it
+    setShowConfirm(false);
   };
 
   const copyToClipboard = (text: string) => {
@@ -108,23 +152,59 @@ export function Transfers() {
                 maxLength={255}
               />
             </div>
+            {validationError && (
+              <div className="flex items-center gap-2 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                {validationError}
+              </div>
+            )}
             {transferMutation.error && (
               <div className="flex items-center gap-2 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4" />
-                {transferMutation.error instanceof ApiError
-                  ? transferMutation.error.message
-                  : 'Failed to process transfer'}
+                {transferMutation.error instanceof ApiError ? transferMutation.error.message : 'Failed to process transfer'}
               </div>
             )}
             <Button type="submit" disabled={transferMutation.isPending} className="w-full">
-              {transferMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+              {transferMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Transfer {formData.amount ? formatCurrency(formData.amount) : 'Amount'}
             </Button>
           </form>
         </CardContent>
       </Card>
+
+      {/* Confirmation Step */}
+      {showConfirm && (
+        <Card className="max-w-2xl border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+          <CardHeader>
+            <CardTitle>Confirm Transfer</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <strong>From:</strong> {formData.fromAccountNumber}
+            </div>
+            <div>
+              <strong>To:</strong> {formData.toAccountNumber}
+            </div>
+            <div>
+              <strong>Amount:</strong> {formatCurrency(formData.amount)}
+            </div>
+            {formData.description && (
+              <div>
+                <strong>Description:</strong> {formData.description}
+              </div>
+            )}
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={handleCancel} disabled={transferMutation.isPending}>
+                Cancel
+              </Button>
+              <Button onClick={handleConfirm} disabled={transferMutation.isPending}>
+                {transferMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Confirm Transfer
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {result && (
         <Card className="max-w-2xl border-green-200 bg-green-50 dark:bg-green-950/20">
@@ -138,12 +218,7 @@ export function Transfers() {
                 <span className="text-muted-foreground">Transaction ID:</span>
                 <div className="flex items-center gap-2">
                   <code className="font-mono">{result.transactionId}</code>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyToClipboard(result.transactionId)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(result.transactionId)}>
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
@@ -152,12 +227,7 @@ export function Transfers() {
                 <span className="text-muted-foreground">Reference:</span>
                 <div className="flex items-center gap-2">
                   <code className="font-mono">{result.reference}</code>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyToClipboard(result.reference)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(result.reference)}>
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>

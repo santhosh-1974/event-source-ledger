@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient, ApiError } from '../../lib/api-client';
+import { api, ApiError } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -18,19 +18,40 @@ export function Withdrawals() {
   const [result, setResult] = useState<{ transactionId: string; reference: string } | null>(null);
   const queryClient = useQueryClient();
 
+  const [validationError, setValidationError] = useState<string | null>(null);
   const withdrawMutation = useMutation({
     mutationFn: ({ data, idempotencyKey }: { data: WithdrawInput; idempotencyKey: string }) =>
-      apiClient.withdraw(data, idempotencyKey),
+      api.withdraw(data, idempotencyKey),
     onSuccess: (data) => {
       setResult(data);
+      setValidationError(null);
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['balance'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    },
+    onError: () => {
+      setValidationError(null);
     },
   });
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setResult(null);
+    // client‑side validation
+    if (!formData.accountNumber) {
+      setValidationError('Account number is required');
+      return;
+    }
+    if (!formData.amount) {
+      setValidationError('Amount is required');
+      return;
+    }
+    const amountNum = Number(formData.amount);
+    if (Number.isNaN(amountNum) || amountNum <= 0) {
+      setValidationError('Amount must be a positive number');
+      return;
+    }
+    setValidationError(null);
     const idempotencyKey = uuidv4();
     withdrawMutation.mutate({ data: formData, idempotencyKey });
   };

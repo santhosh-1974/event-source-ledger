@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient, ApiError } from '../../lib/api-client';
+import { api, ApiError } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -18,13 +18,19 @@ export function Deposits() {
   const [result, setResult] = useState<{ transactionId: string; reference: string } | null>(null);
   const queryClient = useQueryClient();
 
+  const [validationError, setValidationError] = useState<string | null>(null);
   const depositMutation = useMutation({
     mutationFn: ({ data, idempotencyKey }: { data: DepositInput; idempotencyKey: string }) =>
-      apiClient.deposit(data, idempotencyKey),
+      api.deposit(data, idempotencyKey),
     onSuccess: (data) => {
       setResult(data);
+      setValidationError(null);
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['balance'] });
+    },
+    onError: () => {
+      // keep validation error cleared on server error
+      setValidationError(null);
     },
   });
 
@@ -76,6 +82,12 @@ export function Deposits() {
                 required
               />
             </div>
+            {validationError && (
+              <div className="flex items-center gap-2 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                {validationError}
+              </div>
+            )}
             {depositMutation.error && (
               <div className="flex items-center gap-2 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4" />
