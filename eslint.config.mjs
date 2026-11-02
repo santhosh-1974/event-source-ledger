@@ -8,6 +8,7 @@ export default tseslint.config(
       "dist/**",
       "node_modules/**",
       "coverage/**",
+      "frontend/**",
     ],
   },
 
@@ -57,6 +58,18 @@ export default tseslint.config(
       "prefer-const": "error",
       "no-var": "error",
       "no-console": "off",
+    },
+  }
+  ,
+  {
+    files: ["**/*.cjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   }
 );
