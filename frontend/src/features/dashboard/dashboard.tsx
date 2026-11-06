@@ -1,9 +1,10 @@
-// Dashboard.tsx – professional banking dashboard
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/api'; // centralized API client (handles JWT automatically)
+import { api } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Users, Wallet, ArrowDownCircle, ArrowUpCircle, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { formatCurrency } from '../../lib/formatters';
 
 export function Dashboard() {
   const {
@@ -24,21 +25,41 @@ export function Dashboard() {
     queryFn: () => api.accounts.getAll(),
   });
 
-  const totalBalance = accountsData?.accounts?.reduce((sum, acct) => sum + (acct.balance ?? 0), 0) ?? 0;
-  const totalAccounts = accountsData?.accounts?.length ?? 0;
+  const accounts = accountsData?.accounts ?? [];
+
+  const {
+    data: balances,
+    isLoading: balancesLoading,
+    isError: balancesError,
+  } = useQuery({
+    queryKey: ['balance', 'dashboard', accounts.map((account) => account.accountNumber)],
+    queryFn: async () => {
+      const results = await Promise.allSettled(
+        accounts.map((account) => api.banking.getBalance(account.accountNumber))
+      );
+      return results.map((result) => (result.status === 'fulfilled' ? Number(result.value.balance) : 0));
+    },
+    enabled: accounts.length > 0,
+  });
+
+  const totalBalance = (balances ?? []).reduce((sum, value) => sum + value, 0);
+  const totalAccounts = accounts.length;
   const totalCustomers = customersData?.customers?.length ?? 0;
+  const balanceLoading = accountsLoading || (accounts.length > 0 && balancesLoading);
 
   const stats = [
     {
       title: 'Total Balance',
-      value: `$${totalBalance.toFixed(2)}`,
+      value: formatCurrency(totalBalance),
+      testId: 'stat-value-balance',
       icon: Wallet,
-      loading: accountsLoading,
-      error: accountsError,
+      loading: balanceLoading,
+      error: accountsError || balancesError,
     },
     {
       title: 'Total Accounts',
       value: totalAccounts,
+      testId: 'stat-value-accounts',
       icon: Wallet,
       loading: accountsLoading,
       error: accountsError,
@@ -46,6 +67,7 @@ export function Dashboard() {
     {
       title: 'Total Customers',
       value: totalCustomers,
+      testId: 'stat-value-customers',
       icon: Users,
       loading: customersLoading,
       error: customersError,
@@ -59,7 +81,6 @@ export function Dashboard() {
         <p className="text-muted-foreground">Overview of your event-sourced ledger system</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -75,7 +96,9 @@ export function Dashboard() {
                 ) : stat.error ? (
                   <p className="text-sm text-red-600">Error loading data</p>
                 ) : (
-                  <div className="text-2xl font-bold" data-testid="stat-value">{stat.value}</div>
+                  <div className="text-2xl font-bold" data-testid="stat-value">
+                    <span data-testid={stat.testId}>{stat.value}</span>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -83,33 +106,34 @@ export function Dashboard() {
         })}
       </div>
 
-      {/* Quick Actions */}
       <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4">
-            <a href="/deposits">
+            <Link to="/deposits">
               <Button variant="outline">
                 <ArrowDownCircle className="mr-2 h-4 w-4" />
                 Deposit
               </Button>
-            </a>
-            <a href="/withdrawals">
+            </Link>
+            <Link to="/withdrawals">
               <Button variant="outline">
                 <ArrowUpCircle className="mr-2 h-4 w-4" />
                 Withdraw
               </Button>
-            </a>
-            <a href="/transfers">
+            </Link>
+            <Link to="/transfers">
               <Button variant="outline">Transfer</Button>
-            </a>
+            </Link>
+            <Link to="/accounts">
+              <Button variant="outline">Accounts</Button>
+            </Link>
           </div>
         </CardContent>
       </Card>
 
-      {/* System Info */}
       <Card>
         <CardHeader>
           <CardTitle>About Event Sourcing</CardTitle>

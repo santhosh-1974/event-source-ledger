@@ -1,7 +1,9 @@
-// AuthContext.tsx
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { createContext, useContext, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { AUTH_UNAUTHORIZED_EVENT, apiClient } from '../lib/api-client';
+import { queryClient } from '../lib/query-client';
 
 interface AuthContextValue {
   token: string | null;
@@ -21,35 +23,61 @@ export const useAuth = (): AuthContextValue => {
   return ctx;
 };
 
+function persistToken(token: string | null) {
+  if (token) {
+    localStorage.setItem('authToken', token);
+  } else {
+    localStorage.removeItem('authToken');
+  }
+  api.setAuthToken(token);
+  apiClient.setAuthToken(token);
+}
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('authToken'));
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const login = async (email: string, password: string) => {
-    try {
-      const result = await api.auth.login({ email, password });
-      setToken(result.token);
-      // after login redirect to dashboard (or home)
-      navigate('/', { replace: true });
-    } catch (err) {
-      // rethrow so UI can show error
-      throw err;
-    }
-  };
-
-  const register = async (fullName: string, email: string, phone: string, password: string) => {
-    try {
-      const result = await api.auth.register({ fullName, email, phone, password });
-      setToken(result.token);
-      navigate('/', { replace: true });
-    } catch (err) {
-      throw err;
-    }
+  const postAuthRedirect = () => {
+    const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+    const dest = from && from !== '/login' && from !== '/register' ? from : '/';
+    navigate(dest, { replace: true });
   };
 
   const logout = () => {
+    persistToken(null);
     setToken(null);
+    queryClient.clear();
     navigate('/login', { replace: true });
+  };
+
+  useEffect(() => {
+    persistToken(token);
+  }, [token]);
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      persistToken(null);
+      setToken(null);
+      queryClient.clear();
+      navigate('/login', { replace: true });
+    };
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+  }, [navigate]);
+
+  const login = async (email: string, password: string) => {
+    const result = await api.auth.login({ email, password });
+    persistToken(result.token);
+    setToken(result.token);
+    postAuthRedirect();
+  };
+
+  const register = async (fullName: string, email: string, phone: string, password: string) => {
+    const result = await api.auth.register({ fullName, email, phone, password });
+    persistToken(result.token);
+    setToken(result.token);
+    postAuthRedirect();
   };
 
   const value: AuthContextValue = {
@@ -59,9 +87,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     register,
     logout,
   };
-
-  // expose token to api module via setter (api.setAuthToken)
-  api.setAuthToken(token);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

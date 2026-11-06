@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -9,6 +10,7 @@ import { Badge } from '../../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Plus, Loader2, Search, AlertCircle, ExternalLink } from 'lucide-react';
 import { formatDate, formatAccountNumber } from '../../lib/formatters';
+import { selectClassName } from '../../lib/utils';
 import type { CreateAccountInput, AccountStatus } from '../../lib/types/api';
 
 const statusColors: Record<AccountStatus, 'default' | 'secondary' | 'destructive' | 'success'> = {
@@ -32,6 +34,8 @@ export function Accounts() {
     queryFn: () => apiClient.getCustomers(),
   });
 
+  const currentCustomer = customersData?.customers?.[0];
+
   const createMutation = useMutation({
     mutationFn: (data: CreateAccountInput) => apiClient.createAccount(data),
     onSuccess: () => {
@@ -48,10 +52,11 @@ export function Accounts() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!currentCustomer) return;
     const formData = new FormData(e.currentTarget);
     const data: CreateAccountInput = {
-      customerId: formData.get('customerId') as string,
-      accountNumber: formData.get('accountNumber') as string,
+      customerId: currentCustomer.id,
+      accountNumber: String(formData.get('accountNumber') ?? '').trim(),
       accountType: formData.get('accountType') as 'SAVINGS' | 'CURRENT',
     };
     createMutation.mutate(data);
@@ -77,7 +82,7 @@ export function Accounts() {
           <h2 className="text-3xl font-bold tracking-tight">Accounts</h2>
           <p className="text-muted-foreground">Manage bank accounts</p>
         </div>
-        <Button onClick={() => setShowCreateForm(!showCreateForm)}>
+        <Button type="button" onClick={() => setShowCreateForm(!showCreateForm)}>
           <Plus className="mr-2 h-4 w-4" />
           {showCreateForm ? 'Cancel' : 'New Account'}
         </Button>
@@ -91,20 +96,8 @@ export function Accounts() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-2">
-                <Label htmlFor="customerId">Customer</Label>
-                <select
-                  id="customerId"
-                  name="customerId"
-                  required
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Select a customer</option>
-                  {customersData?.customers?.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name} ({customer.email})
-                    </option>
-                  ))}
-                </select>
+                <Label>Customer</Label>
+                <Input value={currentCustomer ? `${currentCustomer.name} (${currentCustomer.email})` : 'Loading customer...'} disabled />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="accountNumber">Account Number</Label>
@@ -122,7 +115,7 @@ export function Accounts() {
                   id="accountType"
                   name="accountType"
                   required
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className={selectClassName}
                 >
                   <option value="SAVINGS">Savings</option>
                   <option value="CURRENT">Current</option>
@@ -135,7 +128,7 @@ export function Accounts() {
                     : 'Failed to create account'}
                 </div>
               )}
-              <Button type="submit" disabled={createMutation.isPending}>
+              <Button type="submit" disabled={createMutation.isPending || !currentCustomer}>
                 {createMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
@@ -197,14 +190,20 @@ export function Accounts() {
                     <TableCell className="font-mono text-xs">
                       {account.customerId.slice(0, 8)}...
                     </TableCell>
-                    <TableCell>{formatDate(account.createdAt)}</TableCell>
+                    <TableCell>{formatDate(String(account.createdAt))}</TableCell>
                     <TableCell>
-                      <a
-                        href={`/ledger?account=${account.accountNumber}`}
-                        className="inline-flex items-center"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <Link to={`/accounts/${account.id}`} className="text-sm text-primary hover:underline">
+                          Details
+                        </Link>
+                        <Link
+                          to={`/ledger?account=${encodeURIComponent(account.accountNumber)}`}
+                          className="inline-flex items-center"
+                          aria-label={`Ledger for ${account.accountNumber}`}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -8,49 +9,44 @@ import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Loader2, Search, AlertCircle, Clock, Info } from 'lucide-react';
-import { formatCurrency, formatDateTime } from '../../lib/formatters';
-import { useSearchParams } from 'react-router-dom';
+import { formatCurrency, formatDateTime, toIsoDateTime } from '../../lib/formatters';
 
 export function LedgerHistory() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [accountNumber, setAccountNumber] = useState(searchParams.get('account') || '');
   const [historicalDate, setHistoricalDate] = useState('');
+  const [submittedAccount, setSubmittedAccount] = useState(searchParams.get('account') || '');
+  const [submittedAt, setSubmittedAt] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
 
+  const isoAt = submittedAt;
+
   const { data: balanceData, isLoading: balanceLoading, error: balanceError } = useQuery({
-    queryKey: ['balance', accountNumber, historicalDate],
-    queryFn: () => apiClient.getBalance(accountNumber, historicalDate || undefined),
-    enabled: !!accountNumber,
+    queryKey: ['balance', submittedAccount, isoAt],
+    queryFn: () => apiClient.getBalance(submittedAccount, isoAt),
+    enabled: !!submittedAccount,
   });
 
   const { data: historyData, isLoading: historyLoading, error: historyError } = useQuery({
-    queryKey: ['transactionHistory', accountNumber, page, limit],
-    queryFn: () => apiClient.getTransactionHistory(accountNumber, { page, limit }),
-    enabled: !!accountNumber,
+    queryKey: ['transactionHistory', submittedAccount, page, limit],
+    queryFn: () => apiClient.getTransactionHistory(submittedAccount, { page, limit }),
+    enabled: !!submittedAccount,
   });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmed = accountNumber.trim();
+    setSubmittedAccount(trimmed);
+    setSubmittedAt(toIsoDateTime(historicalDate));
     setPage(1);
+    if (trimmed) {
+      setSearchParams({ account: trimmed });
+    }
   };
 
   const totalPages = historyData?.pagination?.totalPages || 0;
-
-  if (balanceError || historyError) {
-    return (
-      <Card>
-        <CardContent className="flex items-center gap-2 p-6">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <span className="text-destructive">
-            {(balanceError || historyError) instanceof ApiError
-              ? (balanceError || historyError)?.message
-              : 'Failed to load ledger data'}
-          </span>
-        </CardContent>
-      </Card>
-    );
-  }
+  const queryError = balanceError || historyError;
 
   return (
     <div className="space-y-6">
@@ -105,7 +101,7 @@ export function LedgerHistory() {
                 Leave empty for current balance
               </p>
             </div>
-            <Button type="submit" disabled={!accountNumber}>
+            <Button type="submit" disabled={!accountNumber.trim()}>
               <Search className="mr-2 h-4 w-4" />
               View Balance & History
             </Button>
@@ -113,7 +109,20 @@ export function LedgerHistory() {
         </CardContent>
       </Card>
 
-      {accountNumber && (
+      {queryError && (
+        <Card>
+          <CardContent className="flex items-center gap-2 p-6">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <span className="text-destructive">
+              {queryError instanceof ApiError
+                ? queryError.message
+                : 'Failed to load ledger data'}
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {submittedAccount && !queryError && (
         <>
           <Card>
             <CardHeader>
@@ -122,7 +131,7 @@ export function LedgerHistory() {
                 Account Balance
               </CardTitle>
               <CardDescription>
-                {historicalDate ? `Historical balance as of ${new Date(historicalDate).toLocaleString()}` : 'Current balance'}
+                {isoAt ? `Historical balance as of ${new Date(isoAt).toLocaleString()}` : 'Current balance'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -136,7 +145,7 @@ export function LedgerHistory() {
                     {formatCurrency(balanceData.balance)}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Account: {accountNumber}
+                    Account: {submittedAccount}
                   </div>
                 </div>
               ) : null}
@@ -149,7 +158,7 @@ export function LedgerHistory() {
                 <CardTitle>Transaction History</CardTitle>
                 {historyData && (
                   <span className="text-sm text-muted-foreground">
-                    Page {page} of {totalPages} ({historyData.pagination.totalRecords} total)
+                    Page {page} of {totalPages || 1} ({historyData.pagination.totalRecords} total)
                   </span>
                 )}
               </div>
@@ -176,10 +185,12 @@ export function LedgerHistory() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {historyData.transactions.map((txn) => (
-                        <TableRow key={txn.transactionId}>
+                      {historyData.transactions.map((txn, index) => (
+                        <TableRow key={`${txn.transactionId}-${txn.entryType}-${index}`}>
                           <TableCell className="font-mono text-xs">
-                            {txn.reference.slice(0, 8)}...
+                            <Link to={`/transactions/${txn.transactionId}`} className="text-primary hover:underline">
+                              {txn.reference}
+                            </Link>
                           </TableCell>
                           <TableCell>
                             <Badge variant={txn.entryType === 'CREDIT' ? 'success' : 'destructive'}>
@@ -197,27 +208,27 @@ export function LedgerHistory() {
                     </TableBody>
                   </Table>
 
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Page {page} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between mt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {page} of {totalPages || 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPage((p) => Math.min(Math.max(totalPages, 1), p + 1))}
+                      disabled={page >= totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </>
               )}
             </CardContent>

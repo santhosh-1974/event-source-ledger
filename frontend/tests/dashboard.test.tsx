@@ -1,52 +1,57 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
+import { expect, test, vi } from 'vitest';
 import { Dashboard } from '../src/features/dashboard/dashboard';
-import * as api from '../src/lib/api';
+import { api } from '../src/lib/api';
 
-jest.mock('../src/lib/api', () => ({
+vi.mock('../src/lib/api', () => ({
   api: {
-    customers: { getAll: jest.fn() },
-    accounts: { getAll: jest.fn() },
-    auth: { login: jest.fn(), register: jest.fn() },
-    setAuthToken: jest.fn(),
+    customers: { getAll: vi.fn() },
+    accounts: { getAll: vi.fn() },
+    banking: { getBalance: vi.fn() },
+    auth: { login: vi.fn(), register: vi.fn() },
+    setAuthToken: vi.fn(),
   },
 }));
 
-test('renders loading state initially', async () => {
-  (api.api.customers.getAll as jest.Mock).mockReturnValue(new Promise(() => {}));
-  (api.api.accounts.getAll as jest.Mock).mockReturnValue(new Promise(() => {}));
-  const queryClient = new QueryClient();
+test('renders loading state initially', () => {
+  vi.mocked(api.customers.getAll).mockReturnValue(new Promise(() => {}));
+  vi.mocked(api.accounts.getAll).mockReturnValue(new Promise(() => {}));
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <BrowserRouter>
+    <MemoryRouter>
       <QueryClientProvider client={queryClient}>
         <Dashboard />
       </QueryClientProvider>
-    </BrowserRouter>
+    </MemoryRouter>
   );
   expect(screen.getAllByTestId('loader')).toHaveLength(2);
 });
 
 test('renders stats after successful fetch', async () => {
-  (api.api.customers.getAll as jest.Mock).mockResolvedValue({ customers: [{ id: 'c1' }, { id: 'c2' }] });
-  (api.api.accounts.getAll as jest.Mock).mockResolvedValue({
+  vi.mocked(api.customers.getAll).mockResolvedValue({ customers: [{ id: 'c1' }, { id: 'c2' }] } as never);
+  vi.mocked(api.accounts.getAll).mockResolvedValue({
     accounts: [
-      { id: 'a1', balance: 100 },
-      { id: 'a2', balance: 200 },
+      { id: 'a1', accountNumber: 'A1' },
+      { id: 'a2', accountNumber: 'A2' },
     ],
-  });
+  } as never);
+  vi.mocked(api.banking.getBalance).mockImplementation(async (accountNumber: string) => ({
+    accountNumber,
+    balance: accountNumber === 'A1' ? '100.00' : '200.00',
+  }));
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <BrowserRouter>
+    <MemoryRouter>
       <QueryClientProvider client={queryClient}>
         <Dashboard />
       </QueryClientProvider>
-    </BrowserRouter>
+    </MemoryRouter>
   );
   await waitFor(() => {
-    expect(screen.getByText('$300.00')).toBeInTheDocument();
-    const values = screen.getAllByTestId('stat-value').map((el) => el.textContent);
-    expect(values).toContain('2'); // accounts count
-    expect(values).toContain('2'); // customers count
+    expect(screen.getByTestId('stat-value-balance').textContent).toMatch(/300/);
   });
+  const statValues = screen.getAllByTestId('stat-value').map((el) => el.textContent);
+  expect(statValues.some((value) => value === '2')).toBe(true);
 });

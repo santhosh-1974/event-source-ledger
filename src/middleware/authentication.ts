@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 
 import { UnauthorizedError } from "../errors/errors";
-import { verifyAccessToken } from "../modules/auth/auth.service";
+import { verifyAccessToken } from "../libs/jwt";
 
 export interface AuthenticatedUser {
   customerId: string;

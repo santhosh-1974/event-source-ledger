@@ -17,6 +17,9 @@ const envSchema=z.object({
     IDEMPOTENCY_CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(3_600_000),
     JWT_SECRET: z.string().min(32),
     JWT_EXPIRATION_HOURS: z.coerce.number().int().positive().default(24),
+    // Shared secret used by the Identity Service to call the internal customer provisioning endpoint.
+    // No default — must be explicitly set in the environment.
+    CUSTOMER_PROVISIONING_SECRET: z.string().min(1),
 })
 
 const parsed=envSchema.safeParse(process.env)

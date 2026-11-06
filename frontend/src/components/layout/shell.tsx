@@ -18,7 +18,11 @@ const pageTitles: Record<string, string> = {
 export function Shell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
-  const title = pageTitles[location.pathname] || 'Dashboard';
+  const title = location.pathname.startsWith('/accounts/')
+    ? 'Account Details'
+    : location.pathname.startsWith('/transactions/')
+      ? 'Transaction Details'
+      : pageTitles[location.pathname] || 'Dashboard';
 
   return (
     <div className="flex min-h-screen bg-background">

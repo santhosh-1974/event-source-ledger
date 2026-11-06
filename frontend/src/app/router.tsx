@@ -1,11 +1,13 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom';
+import { Providers } from './providers';
 import { Shell } from '../components/layout/shell';
-import { RequireAuth } from '../components/auth/RequireAuth';
+import { GuestOnly, RequireAuth } from '../components/auth/RequireAuth';
 import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { Dashboard } from '../features/dashboard/dashboard';
 import { Customers } from '../features/customers/customers';
 import { Accounts } from '../features/accounts/accounts';
+import { AccountDetail } from '../features/accounts/account-detail';
 import { Deposits } from '../features/deposits/deposits';
 import { Withdrawals } from '../features/withdrawals/withdrawals';
 import { Transfers } from '../features/transfers/transfers';
@@ -15,29 +17,37 @@ import { LedgerHistory } from '../features/ledger/ledger-history';
 
 const router = createBrowserRouter([
   {
-    path: '/',
-    element: <Shell />,
+    element: <Providers><Outlet /></Providers>,
     children: [
-      { index: true, element: <RequireAuth><Dashboard /></RequireAuth> },
-      { path: 'customers', element: <RequireAuth><Customers /></RequireAuth> },
-      { path: 'accounts', element: <RequireAuth><Accounts /></RequireAuth> },
-      { path: 'deposits', element: <RequireAuth><Deposits /></RequireAuth> },
-      { path: 'withdrawals', element: <RequireAuth><Withdrawals /></RequireAuth> },
-      { path: 'transfers', element: <RequireAuth><Transfers /></RequireAuth> },
-      { path: 'transactions', element: <RequireAuth><Transactions /></RequireAuth> },
-      { path: 'transactions/:transactionId', element: <RequireAuth><TransactionDetail /></RequireAuth> },
-      { path: 'ledger', element: <RequireAuth><LedgerHistory /></RequireAuth> },
+      { path: '/login', element: <GuestOnly><LoginPage /></GuestOnly> },
+      { path: '/register', element: <GuestOnly><RegisterPage /></GuestOnly> },
       {
-        path: 'api-docs',
-        element: (
-          <div className="flex h-full items-center justify-center">
-            <iframe
-              src="http://localhost:5000/api-docs"
-              className="h-full w-full border-0"
-              title="API Documentation"
-            />
-          </div>
-        ),
+        path: '/',
+        element: <RequireAuth><Shell /></RequireAuth>,
+        children: [
+          { index: true, element: <Dashboard /> },
+          { path: 'customers', element: <Customers /> },
+          { path: 'accounts', element: <Accounts /> },
+          { path: 'accounts/:accountId', element: <AccountDetail /> },
+          { path: 'deposits', element: <Deposits /> },
+          { path: 'withdrawals', element: <Withdrawals /> },
+          { path: 'transfers', element: <Transfers /> },
+          { path: 'transactions', element: <Transactions /> },
+          { path: 'transactions/:transactionId', element: <TransactionDetail /> },
+          { path: 'ledger', element: <LedgerHistory /> },
+          {
+            path: 'api-docs',
+            element: (
+              <div className="flex h-full items-center justify-center">
+                <iframe
+                  src="http://localhost:5000/api-docs"
+                  className="h-full w-full border-0"
+                  title="API Documentation"
+                />
+              </div>
+            ),
+          },
+        ],
       },
     ],
   },

@@ -1,44 +1,40 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Loader2, Search, AlertCircle, ExternalLink } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '../../lib/formatters';
+import { selectClassName } from '../../lib/utils';
 
 export function Transactions() {
   const [accountNumber, setAccountNumber] = useState('');
+  const [submittedAccount, setSubmittedAccount] = useState('');
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
 
+  const { data: accountsData } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => apiClient.getAccounts(),
+  });
+
   const { data: historyData, isLoading, error } = useQuery({
-    queryKey: ['transactionHistory', accountNumber, page, limit],
-    queryFn: () => apiClient.getTransactionHistory(accountNumber, { page, limit }),
-    enabled: !!accountNumber,
+    queryKey: ['transactionHistory', submittedAccount, page, limit],
+    queryFn: () => apiClient.getTransactionHistory(submittedAccount, { page, limit }),
+    enabled: !!submittedAccount,
   });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmittedAccount(accountNumber.trim());
     setPage(1);
   };
 
   const totalPages = historyData?.pagination?.totalPages || 0;
-
-  if (error) {
-    return (
-      <Card>
-        <CardContent className="flex items-center gap-2 p-6">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <span className="text-destructive">
-            {error instanceof ApiError ? error.message : 'Failed to load transactions'}
-          </span>
-        </CardContent>
-      </Card>
-    );
-  }
+  const accounts = accountsData?.accounts ?? [];
 
   return (
     <div className="space-y-6">
@@ -55,12 +51,18 @@ export function Transactions() {
           <form onSubmit={handleSearch} className="flex gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
+              <input
+                list="transaction-accounts"
                 placeholder="Enter account number..."
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
-                className="pl-8"
+                className={`${selectClassName} pl-8`}
               />
+              <datalist id="transaction-accounts">
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.accountNumber} />
+                ))}
+              </datalist>
             </div>
             <Button type="submit" disabled={!accountNumber}>
               Search
@@ -69,14 +71,25 @@ export function Transactions() {
         </CardContent>
       </Card>
 
-      {accountNumber && (
+      {error && (
+        <Card>
+          <CardContent className="flex items-center gap-2 p-6">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <span className="text-destructive">
+              {error instanceof ApiError ? error.message : 'Failed to load transactions'}
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {submittedAccount && !error && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Transaction History</CardTitle>
               {historyData && (
                 <span className="text-sm text-muted-foreground">
-                  Page {page} of {totalPages} ({historyData.pagination.totalRecords} total)
+                  Page {page} of {totalPages || 1} ({historyData.pagination.totalRecords} total)
                 </span>
               )}
             </div>
@@ -104,10 +117,10 @@ export function Transactions() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {historyData.transactions.map((txn) => (
-                      <TableRow key={txn.transactionId}>
+                    {historyData.transactions.map((txn, index) => (
+                      <TableRow key={`${txn.transactionId}-${txn.entryType}-${index}`}>
                         <TableCell className="font-mono text-xs">
-                          {txn.reference.slice(0, 8)}...
+                          {txn.reference}
                         </TableCell>
                         <TableCell>
                           <Badge variant={txn.entryType === 'CREDIT' ? 'success' : 'destructive'}>
@@ -121,38 +134,38 @@ export function Transactions() {
                         <TableCell>{txn.description || '-'}</TableCell>
                         <TableCell>{formatDateTime(txn.createdAt)}</TableCell>
                         <TableCell>
-                          <a href={`/transactions/${txn.transactionId}`}>
-                            <Button variant="ghost" size="sm">
+                          <Link to={`/transactions/${txn.transactionId}`}>
+                            <Button type="button" variant="ghost" size="sm" aria-label="View transaction">
                               <ExternalLink className="h-4 w-4" />
                             </Button>
-                          </a>
+                          </Link>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
 
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      Page {page} of {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
+                <div className="flex items-center justify-between mt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {page} of {totalPages || 1}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setPage((p) => Math.min(Math.max(totalPages, 1), p + 1))}
+                    disabled={page >= totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
               </>
             )}
           </CardContent>

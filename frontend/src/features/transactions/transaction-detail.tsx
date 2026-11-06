@@ -21,7 +21,7 @@ export function TransactionDetail() {
     return (
       <div className="space-y-6">
         <Link to="/transactions">
-          <Button variant="ghost">
+          <Button type="button" variant="ghost">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Transactions
           </Button>
@@ -41,7 +41,7 @@ export function TransactionDetail() {
   return (
     <div className="space-y-6">
       <Link to="/transactions">
-        <Button variant="ghost">
+        <Button type="button" variant="ghost">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Transactions
         </Button>

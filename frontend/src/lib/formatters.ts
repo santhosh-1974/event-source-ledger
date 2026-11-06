@@ -1,3 +1,10 @@
+export function toIsoDateTime(datetimeLocal: string): string | undefined {
+  if (!datetimeLocal) return undefined;
+  const date = new Date(datetimeLocal);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}
+
 export function formatCurrency(amount: string | number): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
   return new Intl.NumberFormat('en-IN', {
