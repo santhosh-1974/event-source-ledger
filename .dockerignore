@@ -1,0 +1,38 @@
+# Build context for the banking backend image (repository root).
+# Keep node_modules, build output, secrets and VCS metadata out of the context.
+
+# Dependencies & build output (installed/built inside the image)
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# Environment / secrets — never baked into an image
+.env
+.env.*
+!.env.example
+
+# VCS & tooling
+.git
+.gitignore
+.github
+.vscode
+.idea
+*.log
+npm-debug.log*
+
+# Other services and the frontend have their own build contexts
+services
+frontend
+
+# Container orchestration files & docs
+docker-compose*.yml
+Dockerfile
+.dockerignore
+README.md
+docs
+
+# Tests & local state
+tests
+scripts
+*.md
