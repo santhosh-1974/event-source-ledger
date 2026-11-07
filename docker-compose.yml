@@ -1,0 +1,254 @@
+# =============================================================================
+# Event-Sourced Ledger — full local stack
+# =============================================================================
+#   docker compose up --build
+#
+# Services (5):
+#   postgres          PostgreSQL 17 (named volume, healthchecked)
+#   banking-backend   event-sourced monolith + ledger API        :5000
+#   identity-service  registration / login / JWT issuance        :5001
+#   api-gateway       single browser-facing entry point          :4000
+#   frontend          React (Vite) build served by nginx         :5173
+#
+# Service-to-service traffic uses Docker DNS names; the frontend uses the
+# host-published gateway URL because its HTTP calls are made by the *browser*.
+#
+# NOTE: this file lives at the repository root because the root of this
+# repository IS the backend (package.json name = "backend"); there is no
+# separate backend/ directory.
+#
+# No `version:` key on purpose — Compose v2 ignores it and warns that it is
+# obsolete.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Shared configuration
+# -----------------------------------------------------------------------------
+
+# Secrets that MUST be identical in identity-service and banking-backend.
+# They are read from the host environment or the root .env file (Compose loads
+# .env automatically for ${...} substitution). The fallbacks below are
+# development-only placeholders so a fresh clone can boot with a single command;
+# set real values in .env for anything beyond local development.
+x-shared-app-secrets: &shared-app-secrets
+  JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-jwt-secret-change-me-32chars}
+  JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+  CUSTOMER_PROVISIONING_SECRET: ${CUSTOMER_PROVISIONING_SECRET:-dev-only-insecure-provisioning-secret}
+
+x-postgres-credentials: &postgres-credentials
+  POSTGRES_USER: ${POSTGRES_USER:-ledger}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledger_dev_password}
+  POSTGRES_DB: ${POSTGRES_DB:-ledger}
+
+x-restart-policy: &restart-policy
+  restart: unless-stopped
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — the single database for the whole stack
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:17
+    <<: *restart-policy
+    environment:
+      <<: *postgres-credentials
+      # Keep the cluster's default locale deterministic.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      # Bound to the loopback interface only: reachable with `psql` for local
+      # development, never published on the network. Do not change to "5432:5432"
+      # unless you really want Postgres exposed.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - banking-network
+
+  # ---------------------------------------------------------------------------
+  # Banking Backend — monolith. Also the SINGLE migration executor.
+  # ---------------------------------------------------------------------------
+  banking-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: event-source-ledger/banking-backend:local
+    <<: *restart-policy
+    environment:
+      <<: *shared-app-secrets
+      NODE_ENV: production
+      PORT: 5000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # --- application database config (src/config/env.ts) ---
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-ledger}
+      DATABASE_USER: ${POSTGRES_USER:-ledger}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-ledger_dev_password}
+      # --- same credentials as PG* for node-pg-migrate & the entrypoint wait ---
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-ledger}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-ledger_dev_password}
+      PGDATABASE: ${POSTGRES_DB:-ledger}
+      # --- one-shot startup work, owned by this container only ---
+      RUN_MIGRATIONS: "true"
+      SEED_ON_START: "true"
+      IDEMPOTENCY_TTL_SECONDS: ${IDEMPOTENCY_TTL_SECONDS:-3600}
+      IDEMPOTENCY_CLEANUP_INTERVAL_MS: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:-3600000}
+    ports:
+      # Bound to loopback only. The internal provisioning endpoint
+      # (/api/v1/internal/customers) lives on this service, and the API gateway
+      # is the only thing allowed to reach it — from the host, gateway rules
+      # cannot apply. Loopback keeps it off the network; comment this line out
+      # entirely if you do not need direct API debugging.
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # /ready verifies the database connection, /health does not.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5000/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      # Migrations + first-boot seed run before the server starts listening.
+      start_period: 60s
+    stop_grace_period: 20s
+    networks:
+      - banking-network
+
+  # ---------------------------------------------------------------------------
+  # Identity Service — registration, login, JWT, bcrypt
+  # ---------------------------------------------------------------------------
+  identity-service:
+    build:
+      context: ./services/identity-service
+      dockerfile: Dockerfile
+    image: event-source-ledger/identity-service:local
+    <<: *restart-policy
+    environment:
+      <<: *shared-app-secrets
+      PORT: 5001
+      # --- identity-service/src/config/env.ts uses POSTGRES_*, not DATABASE_* ---
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledger_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ledger}
+      # Customer provisioning endpoint on the backend (internal DNS name).
+      # CUSTOMER_PROVISIONING_SECRET comes from the shared anchor above — the
+      # single place both services read it from, so they cannot drift apart.
+      CUSTOMER_SERVICE_URL: http://banking-backend:5000
+      NODE_ENV: production
+    ports:
+      # Loopback only — browsers use the API gateway, never this service
+      # directly. Kept published for local debugging; remove to make it
+      # internal-only.
+      - "127.0.0.1:5001:5001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Registration calls the backend's internal provisioning endpoint.
+      banking-backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - banking-network
+
+  # ---------------------------------------------------------------------------
+  # API Gateway — the only entry point the browser talks to
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    image: event-source-ledger/api-gateway:local
+    <<: *restart-policy
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Internal Docker DNS names — never localhost.
+      IDENTITY_SERVICE_URL: http://identity-service:5001
+      BANKING_SERVICE_URL: http://banking-backend:5000
+    ports:
+      - "4000:4000"
+    depends_on:
+      identity-service:
+        condition: service_healthy
+      banking-backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - banking-network
+
+  # ---------------------------------------------------------------------------
+  # Frontend — static build served by nginx
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Browser-side URL: the gateway as seen FROM THE HOST, not a service name.
+        # Baked into the bundle at build time.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:4000/api/v1}
+    image: event-source-ledger/frontend:local
+    <<: *restart-policy
+    ports:
+      - "5173:5173"
+    depends_on:
+      # Only ordering, not a health gate: the frontend is a static bundle and
+      # does not call the gateway at build time (the API URL is baked in). Making
+      # this `service_healthy` would let an API problem block the UI from loading.
+      api-gateway:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:5173/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    networks:
+      - banking-network
+
+# -----------------------------------------------------------------------------
+# Named volume: keeps PostgreSQL data across `docker compose down` / `up`.
+# Only `docker compose down -v` (or `docker volume rm`) removes it.
+# -----------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    name: event-source-ledger_postgres_data
+
+networks:
+  banking-network:
+    name: event-source-ledger_network
+    driver: bridge

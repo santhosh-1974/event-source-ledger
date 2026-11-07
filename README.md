@@ -27,6 +27,7 @@
 - Getting Started
 - Environment Variables
 - Running the Project
+- Running with Docker Compose
 - Running Tests
 - API Endpoints
 - Testing Strategy
@@ -393,9 +394,147 @@ npm start
 
 ---
 
+# Running with Docker Compose
+
+The whole stack — PostgreSQL, the banking backend, the identity service, the API
+gateway, and the frontend — runs with a single command. Nothing needs to be
+installed locally except Docker.
+
+```bash
+docker compose up --build -d
+```
+
+| Service | Container port | Host URL |
+|---|---|---|
+| `frontend` | 5173 | http://localhost:5173 |
+| `api-gateway` | 4000 | http://localhost:4000 |
+| `banking-backend` | 5000 | `127.0.0.1:5000` (loopback only, for direct API debugging) |
+| `identity-service` | 5001 | `127.0.0.1:5001` (loopback only) |
+| `postgres` | 5432 | `127.0.0.1:5432` (loopback only, for `psql`) |
+
+The browser talks **only** to the frontend, and the frontend's JavaScript bundle
+calls the API gateway at `http://localhost:4000/api/v1`. Nothing else is reachable
+from another machine: the banking backend, identity service, and PostgreSQL are
+all published on the loopback interface only. Inside the Compose network the
+services reach each other by name (`http://banking-backend:5000`,
+`http://identity-service:5001`).
+
+## Start the stack
+
+```bash
+# optional: customise secrets and ports first
+cp .env.example .env
+
+docker compose up --build -d
+```
+
+Every variable in `.env.example` has a development-safe default in
+`docker-compose.yml`, so the stack also boots with no `.env` file at all. For
+anything beyond a local machine, set real secrets — especially `JWT_SECRET`
+(minimum 32 characters) and `CUSTOMER_PROVISIONING_SECRET`.
+
+## Check status
+
+```bash
+docker compose ps
+```
+
+All five services should report `running`, and the four with health checks
+should reach `healthy`. Follow the logs with:
+
+```bash
+docker compose logs -f
+```
+
+## Verify it works
+
+```bash
+# gateway health
+curl http://localhost:4000/health
+
+# frontend
+curl -I http://localhost:5173/
+
+# end-to-end through the gateway
+curl -X POST http://localhost:4000/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Ada Lovelace","email":"ada@example.com","phone":"9876543210","password":"S3curePassw0rd!"}'
+```
+
+Then open http://localhost:5173 and sign in with that account.
+
+## Startup order and migrations
+
+Compose starts the services in dependency order using health-check-based
+`depends_on`, so nothing accepts traffic before what it needs is ready:
+
+```
+postgres (healthy) -> banking-backend (healthy) -> identity-service (healthy)
+                   -> api-gateway (healthy) -> frontend
+```
+
+Migrations run **once**, inside `docker/backend-entrypoint.sh`, before the
+banking backend process starts. The entrypoint waits for PostgreSQL to accept
+connections, applies every migration in `migrations/`, and only then starts
+`node dist/server.js`. Because the migration runner records applied migrations in
+the `pgmigrations` table, a restart prints `No migrations to run!` instead of
+re-applying them.
+
+Seeding is safe to repeat. The entrypoint counts the system ledger accounts and
+seeds only when there are none; on later boots it logs
+`system ledger accounts already present (N rows) — skipping seed`. Set
+`SEED_ON_START=false` to skip seeding entirely, or `RUN_MIGRATIONS=false` to skip
+migrations. Both default to `true`.
+
+## Data persistence
+
+PostgreSQL data lives in the named volume `postgres_data`, which survives
+`docker compose down` and `docker compose up`.
+
+```bash
+docker compose down      # keeps all data
+docker compose up -d     # data is still there
+```
+
+> **Warning:** `docker compose down -v` **deletes the volume and every row in the
+> database**. It is not part of any normal workflow.
+
+## Rebuild after changing code
+
+```bash
+docker compose up --build -d
+```
+
+If you change `VITE_API_BASE_URL`, the frontend must be rebuilt: it is baked into
+the JavaScript bundle at build time. Compose passes it as a build argument
+automatically.
+
+## Configuration notes
+
+- `.env` and `.env.*` files are excluded from every build context via
+  `.dockerignore`. Secrets are injected at **runtime** by Compose, never baked
+  into an image.
+- Images run as non-root (`node` for the Node services, `nginx` for the frontend)
+  and build in multiple stages, so compilers and dev dependencies never reach the
+  runtime image.
+- The internal customer-provisioning endpoint (`/internal/customers`) is rejected
+  by the API gateway with `403`, so it is not exposed outside the network.
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `Cannot connect to the Docker daemon` | Start Docker Desktop and wait for the engine. |
+| `exec format error` / `no such file or directory` for `backend-entrypoint.sh` | The script lost its LF endings (Windows `core.autocrlf`). Run `git config core.autocrlf input` and re-checkout, or `docker compose build --no-cache banking-backend`. |
+| Port already in use | Change `POSTGRES_HOST_PORT` in `.env`, or stop the conflicting process. |
+| Backend restarts repeatedly | `docker compose logs banking-backend`. The entrypoint exits deliberately if PostgreSQL never becomes reachable inside `DB_WAIT_MAX_ATTEMPTS`. |
+
+---
+
 # Running Tests
 
-Run all tests
+Run all tests (requires a running PostgreSQL and a `.env.test` pointing at a
+`ledger_test` database — see `tests/helpers/database.ts`)
 
 ```bash
 npm test
