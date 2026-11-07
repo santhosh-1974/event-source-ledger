@@ -1,5 +1,6 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { env } from "../src/config/env";
+import { UnauthorizedError } from "../src/errors/errors";
 
 // Shared JWT configuration constants (must match original implementation)
 const JWT_ISSUER = "event-sourced-ledger";
@@ -31,8 +32,6 @@ export function verifyAccessToken(token: string): string {
   }) as JwtPayload & { customerId?: unknown };
 
   if (typeof payload.sub !== "string" || payload.customerId !== payload.sub) {
-    // Importing error class lazily to avoid circular deps.
-    const { UnauthorizedError } = require("../src/errors/errors");
     throw new UnauthorizedError("Invalid or expired authentication token");
   }
 

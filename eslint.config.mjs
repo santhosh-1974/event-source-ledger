@@ -6,9 +6,11 @@ export default tseslint.config(
   {
     ignores: [
       "dist/**",
+      "**/dist/**",
       "node_modules/**",
       "coverage/**",
       "frontend/**",
+      "services/**",
     ],
   },
 
@@ -38,7 +40,7 @@ export default tseslint.config(
       parserOptions: {
         project: "./tsconfig.eslint.json",
         tsconfigRootDir: import.meta.dirname,
-    },
+      },
 
       globals: {
         ...globals.node,
@@ -59,10 +61,9 @@ export default tseslint.config(
       "no-var": "error",
       "no-console": "off",
     },
-  }
-  ,
+  },
   {
-    files: ["**/*.cjs"],
+    files: ["**/*.mjs", "**/*.cjs"],
     languageOptions: {
       globals: {
         ...globals.node,

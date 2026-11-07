@@ -12,7 +12,7 @@ function httpRequest(options, body) {
             statusCode: res.statusCode,
             body: data ? JSON.parse(data) : null
           });
-        } catch (err) {
+        } catch {
           resolve({
             statusCode: res.statusCode,
             body: { rawText: data }
