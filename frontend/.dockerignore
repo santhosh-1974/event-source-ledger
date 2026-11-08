@@ -1,0 +1,26 @@
+# Build context for the frontend image (frontend/).
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# Secrets: note that .env.example is kept (harmless template), real .env files
+# are never copied into the image.
+.env
+.env.*
+!.env.example
+
+# VCS & tooling
+.git
+.gitignore
+.vscode
+.idea
+*.log
+npm-debug.log*
+
+# Container files & docs
+Dockerfile
+.dockerignore
+README.md
+
+tests

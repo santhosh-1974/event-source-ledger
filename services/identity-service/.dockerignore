@@ -1,0 +1,25 @@
+# Build context for the Identity Service image.
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# VCS & tooling
+.git
+.gitignore
+.vscode
+.idea
+*.log
+npm-debug.log*
+
+# Container files & docs
+Dockerfile
+.dockerignore
+README.md
+
+tests
