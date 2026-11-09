@@ -1,6 +1,7 @@
 // Tests for Transaction History page
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { Transactions } from '../features/transactions/transactions';
 import { apiClient, ApiError } from '../lib/api-client';
 
@@ -18,7 +19,11 @@ function renderWithClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    </MemoryRouter>
+  );
 }
 
 describe('Transactions component', () => {
@@ -75,10 +80,10 @@ describe('Transactions component', () => {
     renderWithClient(<Transactions />);
     fireEvent.change(screen.getByPlaceholderText(/enter account number/i), { target: { value: '1000' } });
     fireEvent.click(screen.getByRole('button', { name: /search/i }));
-    await waitFor(() => expect(screen.getByText(/reference/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('ref1')).toBeInTheDocument());
     // Verify transaction row content
-    expect(screen.getByText('ref1')).toBeInTheDocument();
-    expect(screen.getByText('Credit')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /reference/i })).toBeInTheDocument();
+    expect(screen.getByText('CREDIT')).toBeInTheDocument();
     // Pagination buttons
     expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();

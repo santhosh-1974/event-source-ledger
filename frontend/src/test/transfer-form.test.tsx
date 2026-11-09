@@ -1,11 +1,36 @@
-import { api, ApiError } from '../lib/api';
-import { vi } from 'vitest';
-vi.mock('../lib/api', () => ({
-  api: { transfer: vi.fn() },
-  ApiError: class extends Error { status: number; constructor(message: string, status: number) { super(message); this.name = 'ApiError'; this.status = status; } },
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Transfers } from '../features/transfers/transfers';
+import { apiClient } from '../lib/api-client';
+
+vi.mock('../lib/api-client', () => ({
+  apiClient: {
+    transfer: vi.fn(),
+    getAccounts: vi.fn(),
+    getBalance: vi.fn(),
+  },
+  ApiError: class extends Error {
+    status: number;
+    constructor(message: string, status: number) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+    }
+  },
 }));
 
 describe('Transfers Form', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (apiClient.getAccounts as any).mockResolvedValue({
+      accounts: [
+        { accountNumber: '1000000001' },
+        { accountNumber: '1000000002' },
+      ],
+    });
+  });
+
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },

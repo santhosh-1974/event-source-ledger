@@ -37,7 +37,7 @@ describe('Dashboard', () => {
     vi.mocked(api.customers.getAll).mockReturnValue(new Promise(() => {}));
     vi.mocked(api.accounts.getAll).mockReturnValue(new Promise(() => {}));
     renderDashboard();
-    expect(screen.getAllByTestId('loader')).toHaveLength(2);
+    expect(screen.getAllByTestId('loader')).toHaveLength(3);
   });
 
   it('renders stats after successful fetch', async () => {
