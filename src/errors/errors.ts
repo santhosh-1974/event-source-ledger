@@ -47,6 +47,12 @@ export class ConflictError extends ApiError {
   }
 }
 
+export class ServiceUnavailableError extends ApiError {
+  constructor(message = "Service temporarily unavailable") {
+    super(message, 503);
+  }
+}
+
 export class ValidationError extends ApiError {
   constructor(message = "Validation failed") {
     super(message, 422);

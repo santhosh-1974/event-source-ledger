@@ -113,7 +113,7 @@ try {
 
 await new Promise(resolve => setTimeout(resolve, 500));
 
-// TEST 3: Get Customer Profile (Banking Service via Gateway)
+// TEST 3: Get Customer Profile (Customer Service via Gateway)
 if (authToken) {
   console.log("TEST 3: Get Customer Profile via Gateway");
   console.log("Path: GET /api/v1/customers/me");
@@ -133,8 +133,8 @@ if (authToken) {
       console.log("✅ PASS: Customer profile retrieved");
       console.log(`   Customer ID: ${result.body.data.id}`);
       console.log(`   Customer Email: ${result.body.data.email}`);
-      console.log(`   JWT Token: Validated by Banking Service`);
-      console.log(`   Routed through: API Gateway (4000) → Banking Service (5000)\n`);
+      console.log(`   JWT Token: Validated by Customer Service`);
+      console.log(`   Routed through: API Gateway (4000) → Customer Service (5002)\n`);
     } else {
       console.log(`❌ FAIL: Expected 200, got ${result.statusCode}`);
       console.log(JSON.stringify(result.body, null, 2));
@@ -223,6 +223,7 @@ console.log("   VITE_API_BASE_URL=http://localhost:4000/api/v1");
 console.log("");
 console.log("✅ API Gateway Routing:");
 console.log("   /api/v1/auth/* → Identity Service (5001)");
+console.log("   /api/v1/customers/* → Customer Service (5002)");
 console.log("   /api/v1/* → Banking Service (5000)");
 console.log("");
 console.log("✅ All requests from frontend go through API Gateway (port 4000)");

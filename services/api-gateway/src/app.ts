@@ -4,7 +4,11 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 
 import { logger } from "./config/logger.js";
-import { identityServiceProxy, bankingServiceProxy } from "./middleware/proxy.js";
+import {
+  bankingServiceProxy,
+  customerServiceProxy,
+  identityServiceProxy,
+} from "./middleware/proxy.js";
 
 const app = express();
 
@@ -42,6 +46,9 @@ app.use("/api/v1/internal", (_req: Request, res: Response) => {
     message: "Not Found",
   });
 });
+
+// Route customer profile requests to the Customer Service.
+app.use("/api/v1/customers", customerServiceProxy);
 
 // Route all other /api/v1/* requests to Banking Service
 // This must come after the /api/v1/auth route to avoid conflicts

@@ -1,41 +1,29 @@
-/**
- * auth.service.ts
- *
- * Authentication business logic for the Identity Service.
- *
- * JWT compatibility note:
- *   Tokens issued here are intentionally compatible with the existing monolith
- *   authentication middleware. The exact claims (iss, aud, sub, customerId, exp)
- *   must not be changed without also updating the monolith's verifyAccessToken.
- *
- * Partial-failure note (credential save after customer creation):
- *   Registration calls the Customer Service over HTTP before writing credentials
- *   to the local database. If createUser() fails after createCustomer() succeeds,
- *   the customer record already exists in the monolith's database and cannot be
- *   rolled back via a local transaction. The failure is logged (without passwords
- *   or secrets) and re-thrown so the caller receives a 500. The customer account
- *   will be orphaned — the operator must reconcile it manually or via a
- *   compensating job. This is a known limitation of the distributed design.
- *
- * findByEmail dependency note:
- *   findByEmail() currently JOINs the customers table that lives in the same
- *   Postgres instance used by the monolith. This is a temporary read dependency:
- *   once the Identity Service has its own read model (e.g., email → customerId
- *   stored in the users table) this JOIN can be removed.
- */
-
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { createCustomer, Customer } from "../clients/customer.client";
 import { env } from "../config/env";
 import { ConflictError, UnauthorizedError } from "../errors/errors";
-import { createUser, findByEmail } from "../repositories/user.repository";
+import {
+  createCredential,
+  findCredentialByEmail,
+} from "../repositories/credential.repository";
 import { LoginInput, RegisterInput } from "../auth.schema";
 
 // ── JWT constants — must match the monolith's src/libs/jwt/index.ts ──────────
 const JWT_ISSUER = "event-sourced-ledger";
 const JWT_AUDIENCE = "banking-api";
 const BCRYPT_COST = 12;
+
+function isUniqueViolation(
+  error: unknown
+): error is { code: "23505"; constraint?: string } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23505"
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -66,16 +54,16 @@ export interface LoginResult {
 }
 
 /**
- * register — creates a customer via the Customer Service and saves credentials.
+ * register — provisions a customer via the Banking API and stores credentials
+ * in the Identity-owned schema.
  *
  * Order of operations:
  *  1. Hash password (bcrypt, cost 12)
  *  2. Call Customer Service → customer record created in monolith DB
- *  3. Save (customerId, passwordHash) in Identity Service DB
+ *  3. Save (customerId, email, passwordHash) in the Identity schema
  *  4. Issue JWT
  *
  * If step 3 fails the customer already exists and cannot be rolled back.
- * See the module-level note above.
  */
 export async function register(input: RegisterInput): Promise<RegisterResult> {
   const { name, email, phone, password } = input;
@@ -87,27 +75,26 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
   // ConflictError / ValidationError propagate directly to the caller.
   const customer = await createCustomer({ name, email, phone });
 
-  // Step 3 — Persist credentials in the Identity Service's own database.
-  // If this fails the customer is already created — log and re-throw.
+  // Step 3 — Persist credentials in the Identity-owned schema.
   try {
-    await createUser(customer.id, passwordHash);
+    await createCredential(customer.id, customer.email, passwordHash);
   } catch (err: unknown) {
-    // Log without exposing passwords, secrets, or the full error chain.
-    const code = (err as { code?: string }).code ?? "unknown";
-
-    // Postgres unique-constraint violation code
-    if (code === "23505") {
-      // The users row already exists (duplicate registration race).
-      throw new ConflictError("Credentials for this customer already exist");
+    if (isUniqueViolation(err)) {
+      if (err.constraint === "credentials_email_key") {
+        throw new ConflictError("Email already exists");
+      }
+      if (err.constraint === "credentials_customer_id_key") {
+        throw new ConflictError("Credentials for this customer already exist");
+      }
     }
 
-    // Any other DB error after the customer was already created.
-    // We cannot undo the HTTP request to the Customer Service.
     console.error(
       "[auth.service] PARTIAL FAILURE: customer created but credential save failed. " +
-        `customerId=${customer.id} pgCode=${code}`
+        `customerId=${customer.id} pgCode=${
+          isUniqueViolation(err) ? err.code : "unknown"
+        }`
     );
-    throw err; // Re-throw original error — caller gets 500
+    throw err;
   }
 
   // Step 4 — Issue access token.
@@ -119,14 +106,15 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
 /**
  * login — verifies credentials and issues an access token.
  *
- * findByEmail() joins the customers table (see module-level note).
+ * Email is looked up in the Identity-owned credentials table; no customer
+ * database join is required.
  * Uses a constant-time bcrypt compare to avoid timing-based enumeration.
  */
 export async function login(input: LoginInput): Promise<LoginResult> {
   const { email, password } = input;
 
-  // Step 1 — Look up credential row (JOIN with customers table).
-  const credential = await findByEmail(email);
+  // Step 1 — Look up the credential by the normalized login email.
+  const credential = await findCredentialByEmail(email);
 
   // Step 2 — Validate password. Use the same error message whether the email
   // is not found or the password is wrong to avoid user enumeration.

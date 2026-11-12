@@ -124,7 +124,7 @@ await new Promise(resolve => setTimeout(resolve, 500));
 
 // TEST 4: Access Banking Service through Gateway (authenticated)
 if (authToken) {
-  console.log("TEST 4: Get customer profile through API Gateway (Banking Service)");
+  console.log("TEST 4: Get customer profile through API Gateway (Customer Service)");
   try {
     const result = await httpRequest({
       hostname: 'localhost',
@@ -138,7 +138,7 @@ if (authToken) {
     });
     
     if (result.statusCode === 200 && result.body.success === true) {
-      console.log("✅ PASS: Banking Service accessible via gateway");
+      console.log("✅ PASS: Customer Service accessible via gateway");
       console.log(`   Customer ID: ${result.body.data.id}`);
       console.log(`   Customer Email: ${result.body.data.email}\n`);
     } else {
@@ -170,12 +170,12 @@ try {
     phone: "1234567890"
   });
   
-  if (result.statusCode === 403) {
+  if (result.statusCode === 404) {
     console.log("✅ PASS: Internal endpoint blocked by gateway");
-    console.log(`   Status: ${result.statusCode} Forbidden`);
+    console.log(`   Status: ${result.statusCode} Not Found`);
     console.log(`   Message: ${result.body.message}\n`);
   } else {
-    console.log(`❌ FAIL: Expected 403, got ${result.statusCode}`);
+    console.log(`❌ FAIL: Expected 404, got ${result.statusCode}`);
     console.log(`   Internal endpoints should not be accessible through gateway!`);
     console.log(JSON.stringify(result.body, null, 2));
   }
@@ -222,6 +222,7 @@ console.log("=== API Gateway Tests Complete ===");
 console.log("\nSummary:");
 console.log("- Health check");
 console.log("- Authentication routing (Identity Service)");
+console.log("- Customer profile routing (Customer Service)");
 console.log("- Banking operations routing (Banking Service)");
 console.log("- Internal endpoint protection");
 console.log("- JWT token forwarding");

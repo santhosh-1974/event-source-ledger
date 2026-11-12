@@ -8,12 +8,12 @@ import { formatCurrency } from '../../lib/formatters';
 
 export function Dashboard() {
   const {
-    data: customersData,
-    isLoading: customersLoading,
-    isError: customersError,
+    data: customerData,
+    isLoading: customerLoading,
+    isError: customerError,
   } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () => api.customers.getAll(),
+    queryKey: ['customer-profile'],
+    queryFn: () => api.customers.getProfile(),
   });
 
   const {
@@ -44,7 +44,7 @@ export function Dashboard() {
 
   const totalBalance = (balances ?? []).reduce((sum, value) => sum + value, 0);
   const totalAccounts = accounts.length;
-  const totalCustomers = customersData?.customers?.length ?? 0;
+  const customerName = customerData?.customer.name ?? 'Unavailable';
   const balanceLoading = accountsLoading || (accounts.length > 0 && balancesLoading);
 
   const stats = [
@@ -65,12 +65,12 @@ export function Dashboard() {
       error: accountsError,
     },
     {
-      title: 'Total Customers',
-      value: totalCustomers,
-      testId: 'stat-value-customers',
+      title: 'Customer Profile',
+      value: customerName,
+      testId: 'stat-value-customer',
       icon: Users,
-      loading: customersLoading,
-      error: customersError,
+      loading: customerLoading,
+      error: customerError,
     },
   ];
 

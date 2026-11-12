@@ -13,9 +13,9 @@ const envSchema = z.object({
   POSTGRES_DB: z.string(),
   JWT_SECRET: z.string(),
   JWT_EXPIRATION_HOURS: z.coerce.number().default(24),
-  // URL of the Customer service internal provisioning endpoint (base URL, e.g., http://localhost:3000)
+  // Base URL of Customer Service.
   CUSTOMER_SERVICE_URL: z.string().url(),
-  // Secret shared between Identity and Customer services for internal provisioning
+  // Secret shared between Identity and Customer services for internal APIs.
   CUSTOMER_PROVISIONING_SECRET: z.string(),
 });
 

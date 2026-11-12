@@ -16,19 +16,22 @@ planned components for implemented ones.
 
 The project is a React banking application backed by a TypeScript/Express
 banking API and PostgreSQL. There are also separate Identity Service and API
-Gateway Node applications. The banking domain itself remains a modular
-monolith: accounts, customers, banking operations, transactions, ledger, and
-idempotency share one process and database transaction boundary.
+Gateway Node applications, plus a separate Customer Service. The banking
+domain remains a modular monolith: accounts, banking operations, transactions,
+ledger, and idempotency share one process and database transaction boundary.
 
 ```mermaid
 flowchart LR
     Browser[React frontend] -->|same-origin /api/*| Nginx
     Nginx --> Gateway[API Gateway]
     Gateway -->|/api/v1/auth/*| Identity[Identity Service]
+    Gateway -->|/api/v1/customers/*| Customer[Customer Service]
     Gateway -->|other /api/v1/*| Banking[Banking backend]
     Identity -->|PostgreSQL| DB[(PostgreSQL)]
     Banking -->|PostgreSQL| DB
-    Identity -->|internal provisioning call + shared secret| Banking
+    Customer -->|customer schema| DB
+    Identity -->|internal provisioning call + shared secret| Customer
+    Banking -->|internal customer-existence call + shared secret| Customer
 ```
 
 ### Runtime and repository layout
@@ -36,27 +39,30 @@ flowchart LR
 | Component | Location | Responsibility |
 |---|---|---|
 | React frontend | `frontend/` | Authentication UI, dashboard, accounts, deposits, withdrawals, transfers, and transaction views. |
-| Banking backend | `src/` | Express API and modular banking domain, including customers, accounts, ledger entries, transactions, auth routes, and idempotency. |
-| Identity Service | `services/identity-service/` | Registration/login and credential storage; calls the banking backend's internal customer provisioning endpoint. |
-| API Gateway | `services/api-gateway/` | Routes auth requests to Identity and other API requests to the banking backend. Denies the public internal-provisioning path. |
-| PostgreSQL migrations | `migrations/` | Seven schema migrations for customers, bank accounts, ledger accounts, transactions, ledger entries, idempotency keys, and users. |
-| Docker | `Dockerfile`, `docker-compose.yml`, `docker/`, and service directories | Local multi-container deployment with PostgreSQL 17, the three Node services, and nginx frontend. |
+| Banking backend | `src/` | Express API and modular banking domain: accounts, ledger entries, transactions, and idempotency. It checks customer existence through Customer Service and retains relational foreign keys. |
+| Identity Service | `services/identity-service/` | Sole registration/login authority; owns credential reads/writes in the `identity` schema and provisions profiles through Customer Service's protected API. |
+| Customer Service | `services/customer-service/` | Authoritative profile create/read/update API; owns application reads and writes to `customer.customers`. |
+| API Gateway | `services/api-gateway/` | Routes auth to Identity, profiles to Customer, and other API requests to Banking. Denies internal service routes. |
+| PostgreSQL migrations | `migrations/` | Schema migrations for customer profiles, bank accounts, ledger accounts, transactions, ledger entries, idempotency keys, and Identity credentials. |
+| Docker | `Dockerfile`, `docker-compose.yml`, `docker/`, and service directories | Local multi-container deployment with PostgreSQL 17, four Node services, and nginx frontend. |
 
 ### Current request and data flow
 
 1. The browser sends `/api/*` requests to nginx, which proxies them to the
    API Gateway.
-2. The Gateway routes `/api/v1/auth/*` to the Identity Service. Other
-   `/api/v1/*` traffic goes to the banking backend.
-3. During registration, Identity stores credentials and calls the banking
-   backend's internal customer-provisioning endpoint using
-   `CUSTOMER_PROVISIONING_SECRET`.
-4. The banking backend validates JWTs and ownership, and carries out financial
-   operations using PostgreSQL transactions and ledger entries.
-5. In Compose, PostgreSQL becomes healthy before the banking backend starts.
-   The backend applies pending migrations and the initial seed before it
-   listens; Identity, Gateway, and frontend then wait on their dependencies'
-   health checks.
+2. The Gateway routes `/api/v1/auth/*` to Identity and
+   `/api/v1/customers/*` to Customer Service. Remaining `/api/v1/*` traffic
+   goes to Banking.
+3. During registration, Identity calls Customer Service's protected create
+   endpoint using `CUSTOMER_PROVISIONING_SECRET`, then stores the returned
+   customer ID, login email, and password hash in `identity.credentials`.
+4. Customer Service authenticates profile reads and updates with the shared
+   JWT contract and enforces customer ownership. Banking validates a customer
+   through Customer Service before account creation; PostgreSQL foreign keys
+   remain a final integrity guard.
+5. In Compose, Banking applies migrations and initial seed. Customer Service's
+   readiness check waits for the migrated customer schema; Identity and
+   Gateway wait for their dependencies' health checks.
 
 ### Database and ledger facts
 
@@ -64,8 +70,9 @@ The checked-in migrations create:
 
 | Table | Purpose |
 |---|---|
-| `customers` | Customer profiles. |
-| `users` | Customer credential records. |
+| `customer.customers` | Customer Service-owned profiles. |
+| `identity.credentials` | Identity-owned login email, customer ID, and password hash. |
+| `legacy_users` | Preserved pre-extraction credential rows; no application code reads or writes this compatibility table. |
 | `bank_accounts` | Customer-owned bank accounts. |
 | `ledger_accounts` | System and customer accounting accounts. |
 | `transactions` | Financial transaction records. |
@@ -91,13 +98,15 @@ consistency strategy.
 
 - `postgres`: PostgreSQL 17 with named volume `ledger-postgres-data`.
 - `banking-backend`: applies migrations and safe initial seeding before startup.
-- `identity-service`: auth and customer provisioning client.
+- `customer-service`: owns customer profile API and reads/writes.
+- `identity-service`: authentication and customer-provisioning client.
 - `api-gateway`: internal routing service.
 - `frontend`: nginx serving the production React build and proxying `/api/`.
 
-Only the frontend port is published to the host by default (`8080`). The other
-service endpoints and PostgreSQL are private to the Compose network. Secrets
-are supplied through the backend `.env` file and are not baked into images.
+Customer Service is not published to the host. The Gateway is the public API
+entry point; database and service ports used for local debugging are bound or
+restricted as specified in Compose. Secrets are supplied at runtime and are
+not baked into images.
 See the root `README.md` Docker section for commands and required variables.
 
 ## Target architecture (proposed, incremental)
@@ -127,11 +136,11 @@ flowchart LR
 | Service | Owns (target) | Current state |
 |---|---|---|
 | Identity | Credentials, sessions, MFA and verification data. | A separate registration/login service exists; it and the banking backend currently share PostgreSQL. |
-| Customer | Customer profile and contact data. | Customer module is still in the banking backend; Identity provisions customers through a protected internal API. |
+| Customer | Customer profile and contact data. | A separate Customer Service owns the profile API and `customer.customers` schema; it still shares PostgreSQL and database credentials with other services. |
 | Banking Core | Accounts, transactions, ledger entries, idempotency, and atomic financial operations. | Implemented together in the banking backend and should stay together during initial extraction. |
 | Notification | Notification preferences, delivery history, and retry state. | Not implemented. |
 | Reporting | Read models, statements, and reporting metadata. | Not implemented as a separate service. |
-| API Gateway | Public API routing and cross-cutting edge controls. | Implemented as a separate service; currently routes auth and banking API paths. |
+| API Gateway | Public API routing and cross-cutting edge controls. | Implemented as a separate service; routes auth, customer profile, and banking API paths. |
 
 ### Financial consistency boundary
 
@@ -149,9 +158,22 @@ notification, or SES pieces exist in the current repository.
 
 ### Data ownership and migration direction
 
-Initially, services may continue using the existing PostgreSQL database while
-boundaries and APIs stabilize. Shared database access is a transition state,
-not the desired ownership model.
+Identity, Customer, and Banking still use the same PostgreSQL instance and
+deployment credentials. The `identity` and `customer` schemas are logical
+ownership boundaries, not yet database-role or network-isolation boundaries.
+The customer-table migration moves the existing table into `customer` without
+rewriting profile IDs; PostgreSQL retains foreign-key references from Banking
+and `legacy_users`. `legacy_users` preserves the old
+rows for rollback; the migration backfills Identity credentials without
+changing customer IDs or password hashes. Rollback restores Identity-created
+credentials to `users` before removing the new schema, and refuses to proceed
+if a credential no longer has a matching customer.
+
+Registration spans customer provisioning and credential persistence in two
+services. These operations cannot be one PostgreSQL transaction: a failure
+while saving a credential after customer creation can leave a customer without
+credentials and requires reconciliation. A future provisioning saga or
+compensation contract is still needed to automate that recovery.
 
 Before granting per-service database ownership:
 
@@ -164,9 +186,9 @@ Before granting per-service database ownership:
 5. Remove cross-service direct database access only after the new owner is
    authoritative.
 
-Prefer separate database roles/schemas as a gradual boundary; separate database
-instances are a later operational decision, not a prerequisite for extracting
-service processes.
+Prefer separate database roles and schemas as a gradual boundary; separate
+database instances are a later operational decision, not a prerequisite for
+extracting service processes.
 
 ## Proposed AWS deployment
 

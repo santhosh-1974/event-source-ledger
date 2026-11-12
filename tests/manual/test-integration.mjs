@@ -1,4 +1,4 @@
-// Integration Test Suite for Identity Service and Monolith
+// Integration Test Suite for Identity, Customer, and Banking Services
 import http from 'http';
 
 function httpRequest(options, body) {
@@ -72,9 +72,9 @@ try {
   console.log(`❌ FAIL: ${err.message}\n`);
 }
 
-// TEST 7: Get valid JWT and test with monolith
+// TEST 7: Get valid JWT and test Customer Service through the Gateway
 try {
-  console.log("TEST 7: Verify JWT issued by Identity Service using monolith auth middleware");
+  console.log("TEST 7: Verify Identity JWT through Customer Service");
   
   // Step 1: Login to get JWT
   const loginResult = await httpRequest({
@@ -95,10 +95,10 @@ try {
   const token = loginResult.body.data.token;
   console.log(`   Got JWT token (first 50 chars): ${token.substring(0, 50)}...`);
   
-  // Step 2: Use JWT with monolith protected endpoint
-  const monolithResult = await httpRequest({
+  // Step 2: Use JWT with the customer profile endpoint through the Gateway
+  const customerResult = await httpRequest({
     hostname: 'localhost',
-    port: 5000,
+    port: 4000,
     path: '/api/v1/customers/me',
     method: 'GET',
     headers: { 
@@ -107,12 +107,12 @@ try {
     }
   });
   
-  if (monolithResult.statusCode === 200 && monolithResult.body.success === true) {
-    console.log("✅ PASS: JWT verified successfully by monolith");
-    console.log(`   Customer ID: ${monolithResult.body.data.id}`);
-    console.log(`   Customer Email: ${monolithResult.body.data.email}\n`);
+  if (customerResult.statusCode === 200 && customerResult.body.success === true) {
+    console.log("✅ PASS: JWT verified successfully by Customer Service");
+    console.log(`   Customer ID: ${customerResult.body.data.id}`);
+    console.log(`   Customer Email: ${customerResult.body.data.email}\n`);
   } else {
-    console.log(`❌ FAIL: Expected 200, got ${monolithResult.statusCode}\n`);
+    console.log(`❌ FAIL: Expected 200, got ${customerResult.statusCode}\n`);
   }
 } catch (err) {
   console.log(`❌ FAIL: ${err.message}\n`);

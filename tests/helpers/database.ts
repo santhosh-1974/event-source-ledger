@@ -48,19 +48,24 @@ export async function disconnectDatabase(): Promise<void> {
   await pool.end();
 }
 
-async function listTables(client: PoolClient): Promise<string[]> {
-  const result = await client.query<{ tablename: string }>(
+async function listTables(
+  client: PoolClient
+): Promise<Array<{ schemaname: string; tablename: string }>> {
+  const result = await client.query<{
+    schemaname: string;
+    tablename: string;
+  }>(
     `
-    SELECT tablename
+    SELECT schemaname, tablename
     FROM pg_tables
-    WHERE schemaname='public'
+    WHERE schemaname IN ('public', 'customer', 'identity')
       AND tablename <> $1
-    ORDER BY tablename;
+    ORDER BY schemaname, tablename;
     `,
     [MIGRATION_TABLE]
   );
 
-  return result.rows.map((row) => row.tablename);
+  return result.rows;
 }
 
 export async function truncateAllTables(): Promise<void> {
@@ -76,7 +81,7 @@ export async function truncateAllTables(): Promise<void> {
     }
 
     const sql = tables
-      .map((table) => `"${table}"`)
+      .map(({ schemaname, tablename }) => `"${schemaname}"."${tablename}"`)
       .join(", ");
 
     await client.query(

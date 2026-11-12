@@ -128,9 +128,9 @@ This provides:
 # Architecture
 
 The frontend is served by nginx and sends API requests through the API Gateway.
-The Gateway routes authentication to the Identity Service and banking API calls
-to the Banking backend. The Banking backend remains a modular monolith; both
-Identity and Banking currently use the same PostgreSQL database.
+The Gateway routes authentication to Identity, customer profiles to Customer
+Service, and banking operations to the Banking backend. The banking domain
+remains a modular monolith; the services still share one PostgreSQL database.
 See [the architecture guide](docs/architecture.md) for verified current and
 proposed architectures.
 
@@ -168,7 +168,6 @@ backend
 │   ├── modules
 │   │   ├── bank-accounts
 │   │   ├── banking
-│   │   ├── customers
 │   │   ├── idempotency
 │   │   ├── ledger
 │   │   └── transactions
@@ -176,6 +175,10 @@ backend
 │   └── server.ts
 │
 ├── migrations
+├── services
+│   ├── api-gateway
+│   ├── customer-service
+│   └── identity-service
 │
 ├── tests
 │   ├── concurrency
@@ -336,6 +339,8 @@ IDEMPOTENCY_CLEANUP_INTERVAL_MS=3600000
 
 JWT_SECRET=<generate-a-random-secret-at-least-32-characters>
 JWT_EXPIRATION_HOURS=24
+CUSTOMER_PROVISIONING_SECRET=<generate-a-random-secret>
+CUSTOMER_SERVICE_URL=http://localhost:5002
 ```
 
 ---
@@ -362,7 +367,8 @@ openssl rand -hex 32
 docker compose up --build -d
 ```
 
-The frontend is available at `http://localhost:8080` (or the configured `FRONTEND_PORT`). PostgreSQL, the banking backend, the Identity Service, and the API Gateway are reachable only inside the Compose network. The frontend proxies API calls through the API Gateway.
+The frontend is available at `http://localhost:5173`. Browser API calls go
+through the API Gateway; Customer Service is not published to the host.
 
 View logs and service health:
 
@@ -379,9 +385,9 @@ docker compose down
 
 ### Docker Services
 
-Compose starts PostgreSQL 17 and waits for its health check before launching the banking backend. The backend applies pending migrations and an idempotent initial seed before it starts listening. The Identity Service waits for the database and banking backend; the API Gateway waits for both application services; and the frontend waits for the healthy gateway. All five services have health checks. PostgreSQL data is stored in the `ledger-postgres-data` named volume and is preserved by `docker compose down`.
+Compose starts PostgreSQL 17 and the Banking backend applies pending migrations and an idempotent initial seed. Customer Service waits for its schema to be ready; Identity and Gateway then wait for their dependencies, and the frontend waits for the Gateway. All six services have health checks. PostgreSQL data is stored in the `ledger-postgres-data` named volume and is preserved by `docker compose down`.
 
-The internal service URLs are `postgres:5432`, `http://banking-backend:5000`, `http://identity-service:5001`, and `http://api-gateway:4000`. Only the frontend port is published to the host. Internal customer-provisioning routes are blocked at the gateway and are not directly published.
+The internal service URLs are `postgres:5432`, `http://banking-backend:5000`, `http://identity-service:5001`, `http://customer-service:5002`, and `http://api-gateway:4000`. Customer Service is not published to the host; internal customer routes are blocked at the Gateway.
 
 ### Building Individual Services
 
@@ -390,6 +396,7 @@ Run from the backend directory:
 ```bash
 docker build -t banking-backend .
 docker build -t identity-service ./services/identity-service
+docker build -t customer-service ./services/customer-service
 docker build -t api-gateway ./services/api-gateway
 docker build -t frontend ./frontend
 ```
@@ -397,7 +404,7 @@ docker build -t frontend ./frontend
 ### Production Considerations
 
 - Never commit `.env`; it is excluded from all image build contexts.
-- Keep `CUSTOMER_PROVISIONING_SECRET` private; only the Identity Service and banking backend need it.
+- Keep `CUSTOMER_PROVISIONING_SECRET` private; Identity, Customer Service, and Banking use it for internal service calls.
 - The production images use multi-stage builds and Node.js 22 for the Node services.
 - Do not remove the `ledger-postgres-data` volume unless you intend to delete the database.
 
@@ -405,7 +412,19 @@ docker build -t frontend ./frontend
 
 # Authentication
 
-Registration is public at `POST /api/v1/auth/register` and creates the customer and password credential in one database transaction. Login is public at `POST /api/v1/auth/login`. Both accept validated JSON; passwords must be 12–72 bytes. Registration expects `name`, `email`, `phone`, and `password`. Login expects `email` and `password`.
+Registration is public at `POST /api/v1/auth/register` and login is public at
+`POST /api/v1/auth/login`; both are routed by the Gateway to the Identity
+Service. Identity stores credentials in the `identity.credentials` schema and
+provisions customer profiles through Customer Service's protected internal
+API. Customer profiles are read and updated through the Customer Service via
+the Gateway; customers can update name and phone, while email changes remain
+unsupported to keep the login identifier consistent. Passwords must be 12–72 bytes. Registration expects `name`, `email`,
+`phone`, and `password`; login expects `email` and `password`.
+
+Customer creation and credential persistence span two services and are not one
+database transaction. If credential persistence fails after customer
+provisioning, Identity reports a server error and logs the customer ID for
+reconciliation; it does not silently claim registration succeeded.
 
 Protected API calls require `Authorization: Bearer <token>`. Tokens use HS256, expire after `JWT_EXPIRATION_HOURS` (24 hours by default), and have no refresh-token flow in this phase. Generate a strong secret (at least 32 characters), provide it through `JWT_SECRET`, and never commit it. For example, `openssl rand -base64 48` can generate a value.
 

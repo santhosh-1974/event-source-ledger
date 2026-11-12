@@ -2,7 +2,7 @@
 
 This is the working, phased plan for evolving Event-Sourced Ledger toward the
 NexusBank product vision. Phase status reflects the repository and validation
-available on **2026-11-11**; update it when work lands. The current system and
+available on **2026-11-13**; update it when work lands. The current system and
 the proposed target are distinguished in [architecture.md](./architecture.md).
 
 ## Principles and release gates
@@ -24,15 +24,15 @@ the proposed target are distinguished in [architecture.md](./architecture.md).
 | Phase | Deliverable | Status |
 |---|---|---|
 | 1 | Architecture audit and design | **Complete** — current/target architecture and this roadmap documented; some product decisions remain open. |
-| 2 | Stabilize frontend/backend integration | **Next** |
-| 3 | Complete Identity Service extraction | **Partial** — a separate service and gateway route exist; auth also remains in the banking backend and data is shared. |
-| 4 | Extract Customer Service | **Not started** |
+| 2 | Stabilize frontend/backend integration | **Incomplete** — backend and frontend suites pass, but full-stack browser-to-Gateway smoke coverage for registration and core banking journeys is still missing. |
+| 3 | Complete Identity Service extraction | **Complete** — Identity is the sole Gateway auth route, owns credential storage, and has a reversible legacy-data migration; service builds, integration tests, and a migration rehearsal passed locally. |
+| 4 | Extract Customer Service | **Complete** — Customer Service owns profile reads/writes; Banking and Identity use its versioned internal contract. Migration rollback/reapply preserved rows and foreign keys; integration tests and service/container builds pass. |
 | 5 | Establish Banking Core boundary | **Not started** — the current banking backend already contains this domain; extraction and contract hardening remain. |
 | 6 | Transactional Outbox and SQS | **Not started** |
 | 7 | Notification Service and SES | **Not started** |
 | 8 | Advanced banking operations and reporting | **Not started** |
 | 9 | Professional banking frontend | **In progress / partial** — current banking UI exists; planned navigation and capabilities remain incomplete. |
-| 10 | Containerization and CI/CD | **Partial** — local five-service Docker Compose is implemented and was built/started with healthy checks; CI, registry publishing, and production hardening remain. |
+| 10 | Containerization and CI/CD | **Partial** — local six-service Docker Compose is implemented; CI, registry publishing, and production hardening remain. |
 | 11 | AWS deployment | **Not started** |
 | 12 | Monitoring, security, and performance | **Not started** |
 
@@ -60,7 +60,7 @@ those phases are complete or that AWS is deployed.
 
 ## Phase 2 — Stabilize frontend/backend integration
 
-**Status: Next**
+**Status: Incomplete**
 
 ### Work
 
@@ -84,9 +84,15 @@ those phases are complete or that AWS is deployed.
 - Backend tests/build and frontend production build pass; remaining frontend
   test failures are fixed or explicitly isolated and tracked.
 
+Phase 2 remains an unmet gate: the current browser-to-Gateway manual check
+covers registration/login and account operations, but does not exercise all
+core money-movement and history journeys end to end. Phase 3 was completed at
+the user's direction before the full Phase 2 gate was met; the outstanding
+Phase 2 validation remains tracked here.
+
 ## Phase 3 — Complete Identity Service extraction
 
-**Status: Partial**
+**Status: Complete**
 
 ### Work
 
@@ -98,6 +104,11 @@ those phases are complete or that AWS is deployed.
   compatible during cutover.
 - Add integration tests for registration/login, provisioning failure, and
   duplicate requests.
+- Move credential storage to an Identity-owned schema, backfill the legacy
+  `users` rows without changing customer IDs or password hashes, and retain a
+  reversible rollback path.
+- Remove backend-owned registration/login handlers so the Gateway's Identity
+  route is the sole supported authentication path.
 
 ### Exit criteria
 
@@ -106,18 +117,27 @@ those phases are complete or that AWS is deployed.
   banking-owned customer data.
 - Existing user/customer associations and credential hashes are preserved.
 
+The Identity and Banking services still share a PostgreSQL instance and
+database credentials. The new schema establishes logical ownership only; a
+separate database role or instance remains a future hardening task.
+
 ## Phase 4 — Extract Customer Service
 
-**Status: Not started**
+**Status: Complete**
 
 ### Work
 
 - Define customer read/update/create APIs and ownership rules.
-- Move profile ownership from the banking backend only after Identity and
-  Banking use the customer contract rather than direct table access.
-- Define an incremental migration for existing `customers` rows and
-  references from accounts and users.
-- Update Gateway routes and contract tests.
+- Move profile ownership out of the Banking backend and route profile traffic
+  through the Gateway to Customer Service.
+- Move the existing `public.customers` table into `customer.customers` without
+  changing IDs or breaking account and legacy-user foreign-key references.
+- Keep login email immutable through profile updates until Identity can
+  coordinate an email-change operation.
+- Have Identity provision profiles and Banking validate customer existence
+  through authenticated, versioned Customer Service contracts.
+- Add owner-access, update, conflict, internal-secret, and Gateway contract
+  tests; build and include Customer Service in local Compose and CI.
 
 ### Exit criteria
 
@@ -126,6 +146,13 @@ those phases are complete or that AWS is deployed.
   contract; no accidental direct database coupling remains in the extracted
   paths.
 - Existing customer IDs and foreign-key relationships remain valid.
+
+The customer-table migration was rehearsed down and up against `ledger_test`;
+the table OID, row count, and referencing foreign keys were unchanged. Backend
+and frontend integration suites, lint, typechecks, production builds, the
+Customer Service container build, and Compose configuration validation passed.
+The profile UI now reads only the signed-in customer's profile rather than
+requesting the former all-customer listing.
 
 ## Phase 5 — Establish the Banking Core boundary
 

@@ -49,11 +49,11 @@ console.log(`✅ Registration successful`);
 console.log(`   Customer ID: ${customerId}`);
 console.log(`   Token: ${token.substring(0, 50)}...\n`);
 
-// Use JWT with monolith
-console.log("Step 2: Use JWT with monolith protected endpoint (port 5000)");
+// Use JWT with the customer profile API through the gateway
+console.log("Step 2: Use JWT with Customer Service through the gateway (port 4000)");
 const customerResult = await httpRequest({
   hostname: 'localhost',
-  port: 5000,
+  port: 4000,
   path: '/api/v1/customers/me',
   method: 'GET',
   headers: { 
@@ -63,8 +63,8 @@ const customerResult = await httpRequest({
 });
 
 if (customerResult.statusCode === 200 && customerResult.body.success === true) {
-  console.log("✅ JWT verified successfully by monolith!");
-  console.log(`   Customer ID from monolith: ${customerResult.body.data.id}`);
+  console.log("✅ JWT verified successfully by Customer Service!");
+  console.log(`   Customer ID from Customer Service: ${customerResult.body.data.id}`);
   console.log(`   Customer Email: ${customerResult.body.data.email}`);
   console.log(`   IDs match: ${customerResult.body.data.id === customerId}\n`);
 } else {

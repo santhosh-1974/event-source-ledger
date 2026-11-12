@@ -210,7 +210,7 @@ describe("End-to-End Banking Flow API", () => {
     }>(
       `
       SELECT
-        (SELECT COUNT(*) FROM customers)::text AS customers,
+        (SELECT COUNT(*) FROM customer.customers)::text AS customers,
         (SELECT COUNT(*) FROM bank_accounts)::text AS accounts,
         (SELECT COUNT(*) FROM transactions)::text AS transactions,
         (SELECT COUNT(*) FROM ledger_entries)::text AS entries,
@@ -239,7 +239,7 @@ describe("End-to-End Banking Flow API", () => {
       FROM ledger_entries le
       INNER JOIN ledger_accounts la ON la.id = le.ledger_account_id
       INNER JOIN bank_accounts ba ON ba.id = la.bank_account_id
-      INNER JOIN customers c ON c.id = ba.customer_id;
+      INNER JOIN customer.customers c ON c.id = ba.customer_id;
       `
     );
     const idempotencyStatuses = await query<{ status: string; count: string }>(

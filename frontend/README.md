@@ -27,10 +27,10 @@ This frontend provides a professional dashboard for managing customers, accounts
 - Quick action buttons for common operations
 - Event sourcing explanation panel
 
-### Customer Management
-- List all customers with search functionality
-- Create new customers with validation
-- View customer details (name, email, phone, creation date)
+### Customer Profile
+- View the signed-in customer's name, email, phone, and creation date
+- Keep profile access scoped to the authenticated customer
+- Create customer profiles through registration
 
 ### Account Management
 - List all bank accounts with search
@@ -204,9 +204,8 @@ The frontend uses a centralized API client (`src/lib/api-client.ts`) that:
 
 ### API Endpoints Used
 
-- `GET /customers` - List all customers
-- `POST /customers/create-customer` - Create customer
-- `GET /customers/:customerId` - Get customer details
+- `GET /customers/me` - Get the signed-in customer's profile
+- `GET /customers/:customerId` - Get the signed-in customer's profile by ID
 - `GET /accounts` - List all accounts
 - `POST /accounts` - Create account
 - `POST /banking/deposit` - Deposit money (requires Idempotency-Key header)

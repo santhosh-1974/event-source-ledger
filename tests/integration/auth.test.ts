@@ -1,128 +1,24 @@
-import jwt from "jsonwebtoken";
 import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import app from "../helpers/app";
-import { authenticateTestUser, authenticatedRequest, registerTestUser } from "../helpers/auth";
+import { authenticatedRequest, registerTestUser } from "../helpers/auth";
 import { query } from "../../src/database/database";
 import { resetDatabase } from "../helpers/database";
-
-const AUTH_URL = "/api/v1/auth";
 
 beforeEach(async () => {
   await resetDatabase();
 });
 
 describe("Authentication API", () => {
-  it("registers a customer and credential atomically and returns a signed token", async () => {
-    const response = await request(app).post(`${AUTH_URL}/register`).send({
-      name: "Riya Shah",
-      email: "riya@example.com",
-      phone: "9876543210",
-      password: "correct-horse-battery-7",
-      isAdmin: true,
-    });
+  it("does not expose registration or login in the banking backend", async () => {
+    const [register, login] = await Promise.all([
+      request(app).post("/api/v1/auth/register"),
+      request(app).post("/api/v1/auth/login"),
+    ]);
 
-    expect(response.status).toBe(201);
-    expect(response.body.data.token).toEqual(expect.any(String));
-    const decodedToken = jwt.decode(response.body.data.token) as jwt.JwtPayload;
-    expect(decodedToken.exp! - decodedToken.iat!).toBe(24 * 60 * 60);
-    expect(response.body.data.customer).toMatchObject({
-      name: "Riya Shah",
-      email: "riya@example.com",
-      phone: "9876543210",
-    });
-    expect(response.body.data.customer.isAdmin).toBeUndefined();
-
-    const rows = await query<{
-      customer_count: string;
-      user_count: string;
-      password_hash: string;
-    }>(`
-      SELECT
-        (SELECT COUNT(*)::text FROM customers) AS customer_count,
-        (SELECT COUNT(*)::text FROM users) AS user_count,
-        (SELECT password_hash FROM users LIMIT 1) AS password_hash;
-    `);
-    expect(rows.rows[0].customer_count).toBe("1");
-    expect(rows.rows[0].user_count).toBe("1");
-    expect(rows.rows[0].password_hash).not.toBe("correct-horse-battery-7");
-  });
-
-  it("rolls back customer creation if credential persistence fails", async () => {
-    await query(`
-      CREATE FUNCTION fail_user_insert()
-      RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        RAISE EXCEPTION 'forced credential failure';
-      END;
-      $$;
-    `);
-    await query(`
-      CREATE TRIGGER fail_user_insert_trigger
-      BEFORE INSERT ON users FOR EACH ROW EXECUTE FUNCTION fail_user_insert();
-    `);
-
-    try {
-      const response = await request(app).post(`${AUTH_URL}/register`).send({
-        name: "Atomic Customer",
-        email: "atomic@example.com",
-        phone: "9876543210",
-        password: "correct-horse-battery-7",
-      });
-      const counts = await query<{ customers: string; users: string }>(`
-        SELECT
-          (SELECT COUNT(*)::text FROM customers) AS customers,
-          (SELECT COUNT(*)::text FROM users) AS users
-      `);
-
-      expect(response.status).toBe(500);
-      expect(counts.rows[0]).toEqual({ customers: "0", users: "0" });
-    } finally {
-      await query("DROP TRIGGER IF EXISTS fail_user_insert_trigger ON users");
-      await query("DROP FUNCTION IF EXISTS fail_user_insert()");
-    }
-  });
-
-  it("authenticates a registered user and rejects an incorrect password", async () => {
-    const credentials = {
-      name: "Riya Shah",
-      email: "riya@example.com",
-      phone: "9876543210",
-      password: "correct-horse-battery-7",
-    };
-    await request(app).post(`${AUTH_URL}/register`).send(credentials);
-
-    const loginToken = await authenticateTestUser(app, credentials.email, credentials.password);
-    const rejected = await request(app).post(`${AUTH_URL}/login`).send({
-      email: credentials.email,
-      password: "wrong-password-123",
-    });
-
-    expect(loginToken).toEqual(expect.any(String));
-    expect(rejected.status).toBe(401);
-  });
-
-  it("validates registration and rejects duplicate email", async () => {
-    const payload = {
-      name: "Riya Shah",
-      email: "riya@example.com",
-      phone: "9876543210",
-      password: "correct-horse-battery-7",
-    };
-    await request(app).post(`${AUTH_URL}/register`).send(payload);
-
-    const duplicate = await request(app).post(`${AUTH_URL}/register`).send({
-      ...payload,
-      phone: "9876543211",
-    });
-    const invalid = await request(app).post(`${AUTH_URL}/register`).send({
-      ...payload,
-      email: "not-an-email",
-    });
-
-    expect(duplicate.status).toBe(409);
-    expect(invalid.status).toBe(400);
+    expect(register.status).toBe(401);
+    expect(login.status).toBe(401);
   });
 
   it("keeps health endpoints public and blocks protected routes without a token", async () => {
@@ -141,7 +37,7 @@ describe("Authentication API", () => {
     expect(JSON.stringify(ready.body)).not.toContain("connectionString");
   });
 
-  it("prevents IDOR access to another customer's customer and accounts", async () => {
+  it("prevents access to another customer's accounts", async () => {
     const owner = await registerTestUser(app, {
       name: "Owner One",
       email: "owner-one@example.com",
@@ -162,15 +58,13 @@ describe("Authentication API", () => {
     expect(ownerAccount.status).toBe(201);
     expect(otherAccount.status).toBe(201);
 
-    const [customer, accountList, account, balance, history] = await Promise.all([
-      authenticatedRequest(app, owner.token).get(`/api/v1/customers/${other.customer.id}`),
+    const [accountList, account, balance, history] = await Promise.all([
       authenticatedRequest(app, owner.token).get("/api/v1/accounts"),
       authenticatedRequest(app, owner.token).get(`/api/v1/accounts/${otherAccount.body.data.id}`),
       authenticatedRequest(app, owner.token).get("/api/v1/banking/1100000002/balance"),
       authenticatedRequest(app, owner.token).get("/api/v1/banking/1100000002/history"),
     ]);
 
-    expect(customer.status).toBe(404);
     expect(accountList.body.data).toHaveLength(1);
     expect(accountList.body.data[0].id).toBe(ownerAccount.body.data.id);
     expect(account.status).toBe(404);

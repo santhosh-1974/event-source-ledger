@@ -20,6 +20,7 @@ const envSchema=z.object({
     // Shared secret used by the Identity Service to call the internal customer provisioning endpoint.
     // No default — must be explicitly set in the environment.
     CUSTOMER_PROVISIONING_SECRET: z.string().min(1),
+    CUSTOMER_SERVICE_URL: z.string().url(),
 })
 
 const parsed=envSchema.safeParse(process.env)

@@ -48,7 +48,7 @@ export const api = {
   },
 
   customers: {
-    getAll: () => apiClient.getCustomers(),
+    getProfile: () => apiClient.getCustomerProfile(),
     get: (id: string) => apiClient.getCustomer(id),
   },
 

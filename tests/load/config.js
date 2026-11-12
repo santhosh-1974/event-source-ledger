@@ -1,6 +1,6 @@
 // Shared k6 configuration. Override values without editing files, for example:
-// k6 run -e BASE_URL=http://localhost:5000 -e VUS=25 -e DURATION=2m deposit.js
-export const BASE_URL = __ENV.BASE_URL || 'http://localhost:5000';
+// k6 run -e BASE_URL=http://localhost:4000 -e VUS=25 -e DURATION=2m deposit.js
+export const BASE_URL = __ENV.BASE_URL || 'http://localhost:4000';
 export const VUS = Number(__ENV.VUS || 10);
 export const DURATION = __ENV.DURATION || '1m';
 export const ACCOUNT_COUNT = Number(__ENV.ACCOUNT_COUNT || 20);

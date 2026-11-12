@@ -3,6 +3,9 @@ import { Express } from "express";
 import request, { Test } from "supertest";
 import { randomUUID } from "node:crypto";
 
+import { createAccessToken } from "../../src/libs/jwt";
+import customerServiceApp from "../../services/customer-service/src/app";
+
 const TEST_JWT_SECRET = "unit-test-only-signing-secret-never-used-in-production";
 const TEST_JWT_ISSUER = "event-sourced-ledger";
 const TEST_JWT_AUDIENCE = "banking-api";
@@ -58,31 +61,25 @@ export function requestAsTestUser(app: Express) {
 }
 
 export async function registerTestUser(
-  app: Express,
-  details: { name: string; email: string; phone: string; password?: string }
+  _bankingApp: Express,
+  details: { name: string; email: string; phone: string }
 ): Promise<TestUser> {
-  const password = details.password ?? "correct-horse-battery-7";
-  const response = await request(app).post("/api/v1/auth/register").send({ ...details, password });
+  const response = await request(customerServiceApp)
+    .post("/api/v1/internal/customers")
+    .set(
+      "x-internal-service-secret",
+      process.env.CUSTOMER_PROVISIONING_SECRET!
+    )
+    .send(details);
   if (response.status !== 201) {
-    throw new Error(`Test user registration failed (${response.status}): ${response.body.message ?? "unknown error"}`);
+    throw new Error(`Test customer provisioning failed (${response.status}): ${response.body.message ?? "unknown error"}`);
   }
 
+  const customer = response.body.data as TestUser["customer"];
   const user: TestUser = {
-    customer: response.body.data.customer,
-    token: response.body.data.token,
+    customer,
+    token: createAccessToken(customer.id),
   };
   primaryUser ??= user;
   return user;
-}
-
-export async function authenticateTestUser(
-  app: Express,
-  email: string,
-  password: string
-): Promise<string> {
-  const response = await request(app).post("/api/v1/auth/login").send({ email, password });
-  if (response.status !== 200 || typeof response.body.data?.token !== "string") {
-    throw new Error(`Test user login failed (${response.status})`);
-  }
-  return response.body.data.token;
 }

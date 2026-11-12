@@ -3,10 +3,11 @@
 # =============================================================================
 #   docker compose up --build
 #
-# Services (5):
+# Services (6):
 #   postgres          PostgreSQL 17 (named volume, healthchecked)
 #   banking-backend   event-sourced monolith + ledger API        :5000
 #   identity-service  registration / login / JWT issuance        :5001
+#   customer-service  customer profile ownership                 :5002
 #   api-gateway       single browser-facing entry point          :4000
 #   frontend          React (Vite) build served by nginx         :5173
 #
@@ -25,7 +26,7 @@
 # Shared configuration
 # -----------------------------------------------------------------------------
 
-# Secrets that MUST be identical in identity-service and banking-backend.
+# Secrets shared by the services that issue or verify tokens or internal calls.
 # They are read from the host environment or the root .env file (Compose loads
 # .env automatically for ${...} substitution). The fallbacks below are
 # development-only placeholders so a fresh clone can boot with a single command;
@@ -71,6 +72,40 @@ services:
       - banking-network
 
   # ---------------------------------------------------------------------------
+  # Customer Service — sole owner of customer profile reads and writes
+  # ---------------------------------------------------------------------------
+  customer-service:
+    build:
+      context: ./services/customer-service
+      dockerfile: Dockerfile
+    image: event-source-ledger/customer-service:local
+    <<: *restart-policy
+    environment:
+      <<: *shared-app-secrets
+      PORT: 5002
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledger_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ledger}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5002/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - banking-network
+
+  # ---------------------------------------------------------------------------
   # Banking Backend — monolith. Also the SINGLE migration executor.
   # ---------------------------------------------------------------------------
   banking-backend:
@@ -84,6 +119,7 @@ services:
       NODE_ENV: production
       PORT: 5000
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      CUSTOMER_SERVICE_URL: http://customer-service:5002
       # --- application database config (src/config/env.ts) ---
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
@@ -102,11 +138,8 @@ services:
       IDEMPOTENCY_TTL_SECONDS: ${IDEMPOTENCY_TTL_SECONDS:-3600}
       IDEMPOTENCY_CLEANUP_INTERVAL_MS: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:-3600000}
     ports:
-      # Bound to loopback only. The internal provisioning endpoint
-      # (/api/v1/internal/customers) lives on this service, and the API gateway
-      # is the only thing allowed to reach it — from the host, gateway rules
-      # cannot apply. Loopback keeps it off the network; comment this line out
-      # entirely if you do not need direct API debugging.
+      # Loopback only for local API debugging; customer endpoints are hosted by
+      # Customer Service and are routed through the Gateway.
       - "127.0.0.1:5000:5000"
     depends_on:
       postgres:
@@ -145,10 +178,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ledger}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledger_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-ledger}
-      # Customer provisioning endpoint on the backend (internal DNS name).
-      # CUSTOMER_PROVISIONING_SECRET comes from the shared anchor above — the
-      # single place both services read it from, so they cannot drift apart.
-      CUSTOMER_SERVICE_URL: http://banking-backend:5000
+      # Customer Service internal API; credentials come from the shared anchor.
+      CUSTOMER_SERVICE_URL: http://customer-service:5002
       NODE_ENV: production
     ports:
       # Loopback only — browsers use the API gateway, never this service
@@ -158,8 +189,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      # Registration calls the backend's internal provisioning endpoint.
-      banking-backend:
+      customer-service:
         condition: service_healthy
     healthcheck:
       test:
@@ -189,11 +219,14 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Internal Docker DNS names — never localhost.
       IDENTITY_SERVICE_URL: http://identity-service:5001
+      CUSTOMER_SERVICE_URL: http://customer-service:5002
       BANKING_SERVICE_URL: http://banking-backend:5000
     ports:
       - "4000:4000"
     depends_on:
       identity-service:
+        condition: service_healthy
+      customer-service:
         condition: service_healthy
       banking-backend:
         condition: service_healthy

@@ -59,6 +59,11 @@ export function createServiceProxy(
 export const identityServiceProxy = createServiceProxy(env.IDENTITY_SERVICE_URL);
 
 /**
+ * Create proxy middleware for Customer Service routes.
+ */
+export const customerServiceProxy = createServiceProxy(env.CUSTOMER_SERVICE_URL);
+
+/**
  * Create proxy middleware for Banking Service routes.
  */
 export const bankingServiceProxy = createProxyMiddleware({

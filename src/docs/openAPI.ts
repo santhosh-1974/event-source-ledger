@@ -1,4 +1,3 @@
-import { customerPaths } from "./customers";
 import { schemas } from "./schemas";
 import { accountPaths } from "./accounts";
 import { bankingPaths } from "./banking";
@@ -26,10 +25,6 @@ export const openApiSpec = {
   ],
 
   tags: [
-    {
-      name: "Customers",
-    },
-
     {
       name: "Accounts",
     },
@@ -65,7 +60,6 @@ export const openApiSpec = {
 },
 
   paths: {
-    ...customerPaths,
     ...accountPaths,
     ...bankingPaths,
     ...transactionPaths,

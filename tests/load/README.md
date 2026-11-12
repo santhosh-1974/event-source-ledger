@@ -1,16 +1,19 @@
 # k6 load tests
 
-These scripts target the implemented `/api/v1` Express routes. Amounts are decimal strings and every banking write uses a fresh UUID-formatted `Idempotency-Key`. There is currently no authentication middleware.
+These scripts target the public API Gateway `/api/v1` routes. Setup registers a customer through Identity and uses its token for banking operations. Amounts are decimal strings and every banking write uses a fresh UUID-formatted `Idempotency-Key`.
 
 ## Install and run
 
-Start PostgreSQL, apply migrations, and start the backend:
+Start PostgreSQL and apply migrations:
 
 ```powershell
 cd backend
 npm run migrate:up
-npm run dev
 ```
+
+Then start the Banking backend, Identity Service, and API Gateway in separate
+terminals using their `npm run dev` scripts. The Gateway must be reachable at
+`http://localhost:4000` unless `BASE_URL` is overridden.
 
 Install k6 using the [official instructions](https://grafana.com/docs/k6/latest/set-up/install-k6/). On Windows: `winget install k6 --source winget`.
 
@@ -28,7 +31,7 @@ k6 run tests/load/mixed-workload.js
 Tune target, virtual users, duration, and setup-account count with environment variables:
 
 ```powershell
-k6 run -e BASE_URL=http://localhost:5000 -e VUS=50 -e DURATION=5m -e ACCOUNT_COUNT=100 tests/load/mixed-workload.js
+k6 run -e BASE_URL=http://localhost:4000 -e VUS=50 -e DURATION=5m -e ACCOUNT_COUNT=100 tests/load/mixed-workload.js
 ```
 
 Defaults in `config.js` are 10 VUs, one minute, 20 accounts, and `10,000,000.00` opening balance. Set `INITIAL_ACCOUNT_BALANCE` higher for very long withdrawal-heavy runs.

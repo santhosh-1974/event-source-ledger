@@ -7,7 +7,7 @@ import { api } from '../../lib/api';
 
 vi.mock('../../lib/api', () => ({
   api: {
-    customers: { getAll: vi.fn() },
+    customers: { getProfile: vi.fn() },
     accounts: { getAll: vi.fn() },
     banking: { getBalance: vi.fn() },
   },
@@ -32,15 +32,17 @@ describe('Dashboard', () => {
   });
 
   test('shows loading spinners while fetching', () => {
-    vi.mocked(api.customers.getAll).mockReturnValue(new Promise(() => {}));
+    vi.mocked(api.customers.getProfile).mockReturnValue(new Promise(() => {}));
     vi.mocked(api.accounts.getAll).mockReturnValue(new Promise(() => {}));
     renderWithProviders();
-    // Dashboard has 3 stat cards: Total Balance, Total Accounts, Total Customers
+    // Dashboard has 3 stat cards: balance, accounts, and the customer's profile.
     expect(screen.getAllByTestId('loader').length).toBeGreaterThanOrEqual(2);
   });
 
   test('renders stats when data is loaded', async () => {
-    vi.mocked(api.customers.getAll).mockResolvedValue({ customers: [{ id: 'c1' }, { id: 'c2' }] } as never);
+    vi.mocked(api.customers.getProfile).mockResolvedValue({
+      customer: { id: 'c1', name: 'Alice' },
+    } as never);
     vi.mocked(api.accounts.getAll).mockResolvedValue({
       accounts: [
         { accountNumber: 'A1' },
@@ -59,11 +61,11 @@ describe('Dashboard', () => {
       expect(screen.getByTestId('stat-value-balance').textContent).toMatch(/300/);
     });
     expect(screen.getByTestId('stat-value-accounts').textContent).toBe('2');
-    expect(screen.getByTestId('stat-value-customers').textContent).toBe('2');
+    expect(screen.getByTestId('stat-value-customer').textContent).toBe('Alice');
   });
 
   test('shows error messages when API fails', async () => {
-    vi.mocked(api.customers.getAll).mockRejectedValue(new Error('Failed'));
+    vi.mocked(api.customers.getProfile).mockRejectedValue(new Error('Failed'));
     vi.mocked(api.accounts.getAll).mockRejectedValue(new Error('Failed'));
     renderWithProviders();
     await waitFor(() => {

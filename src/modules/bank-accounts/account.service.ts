@@ -1,18 +1,15 @@
 import { ConflictError, NotFoundError } from "../../errors/errors";
 import { getClient } from "../../database/database";
+import { assertCustomerExists } from "./customer.client";
 import { create, createCustomerLedgerAccount, deleteById, findAll, findById, findByAccountNumber, updateById, updateStatus } from "./account.repository";
 import { CreateAccountInput, UpdateAccountInput, UpdateAccountStatusInput } from "./account.schema";
 import { AccountStatus, BankAccount } from "./account.types";
 
 export async function createAccount(data: CreateAccountInput): Promise<BankAccount> {
+    await assertCustomerExists(data.customerId);
     const client = await getClient();
     try {
         await client.query("BEGIN");
-        const customer = await client.query("SELECT 1 FROM customers WHERE id = $1 FOR KEY SHARE", [data.customerId]);
-        if (customer.rowCount === 0) {
-            throw new NotFoundError("Customer not found.");
-        }
-
         const account = await create(data, client);
         await createCustomerLedgerAccount(account, client);
         await client.query("COMMIT");
@@ -22,10 +19,19 @@ export async function createAccount(data: CreateAccountInput): Promise<BankAccou
         if (isUniqueViolation(error, "bank_accounts_account_number_key")) {
             throw new ConflictError("Account number already exists");
         }
+        if (isForeignKeyViolation(error, "bank_accounts_customer_id_fkey")) {
+            throw new NotFoundError("Customer not found.");
+        }
         throw error;
     } finally {
         client.release();
     }
+}
+
+function isForeignKeyViolation(error: unknown, constraint: string): boolean {
+    return typeof error === "object" && error !== null &&
+        "code" in error && error.code === "23503" &&
+        "constraint" in error && error.constraint === constraint;
 }
 
 function isUniqueViolation(error: unknown, constraint: string): boolean {

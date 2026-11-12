@@ -2,12 +2,14 @@
  * customer.client.ts
  *
  * HTTP client for the internal Customer provisioning endpoint exposed by
- * the backend monolith at:
+ * Customer Service at:
  *   POST {CUSTOMER_SERVICE_URL}/api/v1/internal/customers
  *
  * This module uses Node.js native fetch (Node ≥ 18).
  * It does NOT import any monolith repositories, database code, or schemas.
  */
+
+import { z } from "zod";
 
 import { env } from "../config/env";
 import {
@@ -15,7 +17,6 @@ import {
   ConflictError,
   InternalServerError,
   ServiceUnavailableError,
-  UnauthorizedError,
   ValidationError,
 } from "../errors/errors";
 
@@ -35,6 +36,17 @@ export interface CreateCustomerInput {
   phone: string;
 }
 
+const customerEnvelopeSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    email: z.string().email(),
+    phone: z.string(),
+    createdAt: z.string().datetime(),
+  }),
+});
+
 /** Request timeout in milliseconds. */
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -42,10 +54,9 @@ const REQUEST_TIMEOUT_MS = 8_000;
  * Calls the internal Customer provisioning endpoint.
  *
  * @throws {ValidationError}    on 400 or 422 — bad input from the caller.
- * @throws {UnauthorizedError}  on 401 — secret misconfiguration between services.
+ * @throws {InternalServerError} on 401 — secret misconfiguration between services.
  * @throws {ConflictError}      on 409 — email or phone already registered.
- * @throws {InternalServerError} on 5xx, timeouts, or network failures — customer
- *                               service is unavailable or misbehaving.
+ * @throws {ServiceUnavailableError} on 5xx, timeouts, or network failures.
  */
 export async function createCustomer(
   data: CreateCustomerInput
@@ -83,22 +94,21 @@ export async function createCustomer(
   // ----- handle HTTP error status codes -----
 
   if (response.status === 201) {
-    // Success path — parse the envelope: { success: true, data: Customer }
     let body: unknown;
     try {
       body = await response.json();
     } catch {
       throw new InternalServerError(
-        "Customer service returned an unreadable 201 response"
+        "Customer service returned an unreadable success response"
       );
     }
-    const envelope = body as { success?: boolean; data?: Customer };
-    if (!envelope?.data) {
+    const parsed = customerEnvelopeSchema.safeParse(body);
+    if (!parsed.success) {
       throw new InternalServerError(
-        "Customer service response is missing the data field"
+        "Customer service returned an invalid success response"
       );
     }
-    return envelope.data;
+    return parsed.data.data;
   }
 
   // For non-201 responses, try to extract an error message from the body
@@ -116,10 +126,8 @@ export async function createCustomer(
       throw new BadRequestError(`Customer validation failed: ${errorMessage}`);
 
     case response.status === 401:
-      // 401 means the shared secret is wrong — this is an internal
-      // service misconfiguration, not a user error.
-      throw new UnauthorizedError(
-        "Internal service authentication failed — check CUSTOMER_PROVISIONING_SECRET"
+      throw new InternalServerError(
+        "Customer service authentication failed"
       );
 
     case response.status === 409:

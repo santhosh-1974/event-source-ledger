@@ -29,12 +29,15 @@ export function Accounts() {
     queryFn: () => apiClient.getAccounts(),
   });
 
-  const { data: customersData } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () => apiClient.getCustomers(),
+  const {
+    data: customerData,
+    error: customerError,
+  } = useQuery({
+    queryKey: ['customer-profile'],
+    queryFn: () => apiClient.getCustomerProfile(),
   });
 
-  const currentCustomer = customersData?.customers?.[0];
+  const currentCustomer = customerData?.customer;
 
   const createMutation = useMutation({
     mutationFn: (data: CreateAccountInput) => apiClient.createAccount(data),
@@ -98,6 +101,13 @@ export function Accounts() {
               <div className="grid gap-2">
                 <Label>Customer</Label>
                 <Input value={currentCustomer ? `${currentCustomer.name} (${currentCustomer.email})` : 'Loading customer...'} disabled />
+                {customerError && (
+                  <p className="text-sm text-destructive">
+                    {customerError instanceof ApiError
+                      ? customerError.message
+                      : 'Failed to load customer profile'}
+                  </p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="accountNumber">Account Number</Label>

@@ -133,11 +133,6 @@ function unwrapData<T>(payload: unknown): T {
   return payload as T;
 }
 
-function asCustomerList(data: Customer | Customer[] | null | undefined): Customer[] {
-  if (!data) return [];
-  return Array.isArray(data) ? data : [data];
-}
-
 function asAccountList(data: BankAccount | BankAccount[] | null | undefined): BankAccount[] {
   if (!data) return [];
   return Array.isArray(data) ? data : [data];
@@ -236,9 +231,9 @@ class ApiClient {
     }, { skipAuthRedirect: true });
   }
 
-  async getCustomers(): Promise<{ customers: Customer[] }> {
-    const data = await this.request<Customer | Customer[]>('/customers');
-    return { customers: asCustomerList(data) };
+  async getCustomerProfile(): Promise<{ customer: Customer }> {
+    const customer = await this.request<Customer>('/customers/me');
+    return { customer };
   }
 
   async getCustomer(customerId: string): Promise<{ customer: Customer }> {
