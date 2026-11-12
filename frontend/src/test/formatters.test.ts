@@ -17,9 +17,10 @@ describe('Formatters', () => {
 
   describe('formatAccountNumber', () => {
     it('should format account numbers with hyphens', () => {
-      expect(formatAccountNumber('1000000001')).toBe('1000-0000-001');
+      expect(formatAccountNumber('1000000001')).toBe('1000-0000-01');
       expect(formatAccountNumber('1234')).toBe('1234');
       expect(formatAccountNumber('12345678')).toBe('1234-5678');
+      expect(formatAccountNumber('1234567890')).toBe('1234-5678-90');
     });
   });
 

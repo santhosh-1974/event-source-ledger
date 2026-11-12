@@ -35,6 +35,14 @@ app.get("/health", (_req: Request, res: Response) => {
 // Route authentication requests to Identity Service
 app.use("/api/v1/auth", identityServiceProxy);
 
+// Keep service-to-service provisioning routes off the public API.
+app.use("/api/v1/internal", (_req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    message: "Not Found",
+  });
+});
+
 // Route all other /api/v1/* requests to Banking Service
 // This must come after the /api/v1/auth route to avoid conflicts
 app.use("/api/v1", bankingServiceProxy);

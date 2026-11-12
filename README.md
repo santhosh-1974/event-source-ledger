@@ -20,7 +20,7 @@
 - Tech Stack
 - Project Structure
 - Database Design
-- Event Sourcing
+- Ledger Model
 - Double-Entry Accounting
 - Idempotency
 - API Documentation
@@ -33,7 +33,20 @@
 - Testing Strategy
 - Security
 - Future Improvements
+- Project Documentation
 - License
+
+---
+
+## Project Documentation
+
+- [AI agent project context](docs/AI_CONTEXT.md) — start here for current
+  repository facts and contributor guardrails.
+- [Architecture](docs/architecture.md) — current system, proposed target, and
+  design decisions.
+- [Execution plan](docs/execution-plan.md) — phases, status, and acceptance
+  criteria.
+- [Product idea](docs/IDEA.md) — project intent and naming context.
 
 ---
 
@@ -41,7 +54,9 @@
 
 Traditional CRUD banking applications overwrite balances directly.
 
-This project follows an **Event-Sourced Ledger** approach where every financial operation is stored as an immutable event.
+The project uses a PostgreSQL-backed double-entry ledger. Financial operations
+create transaction records and debit/credit ledger entries, and account
+balances are calculated from those entries.
 
 Instead of asking:
 
@@ -49,12 +64,12 @@ Instead of asking:
 
 The system answers:
 
-> "Replay all ledger events and calculate the balance."
+> "Aggregate the ledger entries and calculate the balance."
 
 This provides:
 
 - Complete audit history
-- No hidden balance mutations
+- No direct balance overwrite in the banking operations
 - Easy debugging
 - Historical balance queries
 - Strong transactional consistency
@@ -79,10 +94,9 @@ This provides:
 
 ## Ledger
 
-- Event Sourcing
-- Immutable ledger entries
+- Ledger-derived balances
 - Double-entry bookkeeping
-- Complete audit trail
+- Auditable transaction and entry history
 
 ---
 
@@ -113,25 +127,12 @@ This provides:
 
 # Architecture
 
-```
-                Client
-                   │
-                   ▼
-             Express Server
-                   │
-         ┌─────────┴─────────┐
-         ▼                   ▼
-    Controllers         Health Checks
-         │
-         ▼
-      Services
-         │
-         ▼
-    Repositories
-         │
-         ▼
-     PostgreSQL
-```
+The frontend is served by nginx and sends API requests through the API Gateway.
+The Gateway routes authentication to the Identity Service and banking API calls
+to the Banking backend. The Banking backend remains a modular monolith; both
+Identity and Banking currently use the same PostgreSQL database.
+See [the architecture guide](docs/architecture.md) for verified current and
+proposed architectures.
 
 ---
 
@@ -165,7 +166,7 @@ backend
 │   ├── health
 │   ├── middleware
 │   ├── modules
-│   │   ├── accounts
+│   │   ├── bank-accounts
 │   │   ├── banking
 │   │   ├── customers
 │   │   ├── idempotency
@@ -210,38 +211,19 @@ Each transaction creates immutable ledger entries instead of directly modifying 
 
 ---
 
-# Event Sourcing
+# Ledger Model
 
-Every financial operation generates an immutable event.
+The current schema stores financial transactions in `transactions` and their
+debit/credit postings in `ledger_entries`. Balances are calculated by
+aggregating ledger entries; they are not a mutable account balance field.
 
-Example:
+The repository is named Event-Sourced Ledger, but the current schema does not
+implement a general-purpose replayable domain-event store. The transactional
+outbox and asynchronous event publishing are future roadmap work.
 
-```
-Deposit ₹1000
-
-↓
-
-Transaction Created
-
-↓
-
-Ledger Entry Created
-
-↓
-
-Balance Calculated From Ledger
-```
-
-Nothing is overwritten.
-
-Every event remains permanently stored.
-
-Benefits:
-
-- Full audit history
-- Time travel queries
-- Easier debugging
-- Replay capability
+Financial writes use database transactions, idempotency, and concurrency
+controls. For schema details and invariants, see
+[the architecture guide](docs/architecture.md).
 
 ---
 
@@ -355,6 +337,69 @@ IDEMPOTENCY_CLEANUP_INTERVAL_MS=3600000
 JWT_SECRET=<generate-a-random-secret-at-least-32-characters>
 JWT_EXPIRATION_HOURS=24
 ```
+
+---
+
+## Docker Deployment
+
+### Prerequisites
+
+- Docker Engine and Docker Compose v2
+
+### Quick Start with Docker Compose
+
+1. Copy `.env.example` to `.env` in the backend directory.
+
+2. Set `DATABASE_PASSWORD`, `JWT_SECRET`, and `CUSTOMER_PROVISIONING_SECRET` in `.env` to unique random values. For example, generate each value with:
+
+```bash
+openssl rand -hex 32
+```
+
+3. Build and start the services:
+
+```bash
+docker compose up --build -d
+```
+
+The frontend is available at `http://localhost:8080` (or the configured `FRONTEND_PORT`). PostgreSQL, the banking backend, the Identity Service, and the API Gateway are reachable only inside the Compose network. The frontend proxies API calls through the API Gateway.
+
+View logs and service health:
+
+```bash
+docker compose logs -f
+docker compose ps
+```
+
+Stop the containers while preserving the database volume:
+
+```bash
+docker compose down
+```
+
+### Docker Services
+
+Compose starts PostgreSQL 17 and waits for its health check before launching the banking backend. The backend applies pending migrations and an idempotent initial seed before it starts listening. The Identity Service waits for the database and banking backend; the API Gateway waits for both application services; and the frontend waits for the healthy gateway. All five services have health checks. PostgreSQL data is stored in the `ledger-postgres-data` named volume and is preserved by `docker compose down`.
+
+The internal service URLs are `postgres:5432`, `http://banking-backend:5000`, `http://identity-service:5001`, and `http://api-gateway:4000`. Only the frontend port is published to the host. Internal customer-provisioning routes are blocked at the gateway and are not directly published.
+
+### Building Individual Services
+
+Run from the backend directory:
+
+```bash
+docker build -t banking-backend .
+docker build -t identity-service ./services/identity-service
+docker build -t api-gateway ./services/api-gateway
+docker build -t frontend ./frontend
+```
+
+### Production Considerations
+
+- Never commit `.env`; it is excluded from all image build contexts.
+- Keep `CUSTOMER_PROVISIONING_SECRET` private; only the Identity Service and banking backend need it.
+- The production images use multi-stage builds and Node.js 22 for the Node services.
+- Do not remove the `ledger-postgres-data` volume unless you intend to delete the database.
 
 ---
 

@@ -60,27 +60,11 @@ export const identityServiceProxy = createServiceProxy(env.IDENTITY_SERVICE_URL)
 
 /**
  * Create proxy middleware for Banking Service routes.
- * Filters out internal endpoints that should not be exposed through the gateway.
  */
 export const bankingServiceProxy = createProxyMiddleware({
   target: env.BANKING_SERVICE_URL,
   changeOrigin: true,
   onProxyReq: (proxyReq, req, res) => {
-    // Block access to internal customer provisioning endpoint
-    if (req.url?.includes("/internal/customers")) {
-      logger.warn({
-        msg: "Blocked access to internal endpoint",
-        method: req.method,
-        url: req.url,
-        ip: req.ip,
-      });
-      res.status(403).json({
-        success: false,
-        message: "Forbidden",
-      });
-      return;
-    }
-
     logger.debug({
       msg: "Proxying request to banking service",
       method: req.method,

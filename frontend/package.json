@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:frontend": "vitest run src/**/*.test.tsx --silent",
+    "test:frontend": "vitest run --silent",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
