@@ -52,6 +52,7 @@ jobs:
 
       IDEMPOTENCY_TTL_SECONDS: 3600
       IDEMPOTENCY_CLEANUP_INTERVAL_MS: 3600000
+      CUSTOMER_PROVISIONING_SECRET: ci-only-customer-provisioning-secret
 
     steps:
       - name: Checkout Repository
