@@ -36,9 +36,25 @@ if (!address || typeof address === "string") {
 
 process.env.CUSTOMER_SERVICE_URL = `http://127.0.0.1:${address.port}`;
 process.env.IDENTITY_SERVICE_URL ??= "http://127.0.0.1:1";
-process.env.BANKING_SERVICE_URL ??= "http://127.0.0.1:1";
 
-const { connectDatabase, assertTestEnvironment } = await import("./database");
+const { default: bankingApp } = await import("../../src/app");
+const bankingServer = createServer(bankingApp);
+await new Promise<void>((resolve, reject) => {
+  bankingServer.once("error", reject);
+  bankingServer.listen(0, "127.0.0.1", resolve);
+});
+
+const bankingAddress = bankingServer.address();
+if (!bankingAddress || typeof bankingAddress === "string") {
+  throw new Error("Could not determine the Banking Core test port");
+}
+
+process.env.BANKING_SERVICE_URL = `http://127.0.0.1:${bankingAddress.port}`;
+
+const {
+  connectDatabase,
+  assertTestEnvironment,
+} = await import("./database");
 
 beforeAll(async () => {
   assertTestEnvironment();
@@ -46,6 +62,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    bankingServer.close((error) =>
+      error ? reject(error) : resolve()
+    );
+  });
   await new Promise<void>((resolve, reject) => {
     customerServer.close((error) =>
       error ? reject(error) : resolve()

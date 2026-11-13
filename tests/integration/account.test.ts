@@ -109,6 +109,16 @@ describe("Bank Account API", () => {
     expect(await accountCount()).toBe(0);
   });
 
+  it("should reject malformed account IDs before querying PostgreSQL", async () => {
+    const response = await request(app).get(`${ACCOUNT_URL}/not-a-uuid`);
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      success: false,
+      message: "Validation failed",
+    });
+  });
+
   it("should reject invalid account type", async () => {
     const customer = await createCustomer();
 

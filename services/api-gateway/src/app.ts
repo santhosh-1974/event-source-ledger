@@ -50,9 +50,10 @@ app.use("/api/v1/internal", (_req: Request, res: Response) => {
 // Route customer profile requests to the Customer Service.
 app.use("/api/v1/customers", customerServiceProxy);
 
-// Route all other /api/v1/* requests to Banking Service
-// This must come after the /api/v1/auth route to avoid conflicts
-app.use("/api/v1", bankingServiceProxy);
+// Expose only the versioned Banking Core resources through the public Gateway.
+app.use("/api/v1/accounts", bankingServiceProxy);
+app.use("/api/v1/banking", bankingServiceProxy);
+app.use("/api/v1/transactions", bankingServiceProxy);
 
 // ── 404 handler ────────────────────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {

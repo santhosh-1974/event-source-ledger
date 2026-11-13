@@ -26,7 +26,7 @@ flowchart LR
     Nginx --> Gateway[API Gateway]
     Gateway -->|/api/v1/auth/*| Identity[Identity Service]
     Gateway -->|/api/v1/customers/*| Customer[Customer Service]
-    Gateway -->|other /api/v1/*| Banking[Banking backend]
+    Gateway -->|/api/v1/accounts, /banking, /transactions| Banking[Banking Core]
     Identity -->|PostgreSQL| DB[(PostgreSQL)]
     Banking -->|PostgreSQL| DB
     Customer -->|customer schema| DB
@@ -50,9 +50,10 @@ flowchart LR
 
 1. The browser sends `/api/*` requests to nginx, which proxies them to the
    API Gateway.
-2. The Gateway routes `/api/v1/auth/*` to Identity and
-   `/api/v1/customers/*` to Customer Service. Remaining `/api/v1/*` traffic
-   goes to Banking.
+2. The Gateway routes `/api/v1/auth/*` to Identity,
+   `/api/v1/customers/*` to Customer Service, and only the documented
+   `/api/v1/accounts`, `/api/v1/banking`, and `/api/v1/transactions` resources
+   to Banking. Other `/api/v1/*` paths are not forwarded.
 3. During registration, Identity calls Customer Service's protected create
    endpoint using `CUSTOMER_PROVISIONING_SECRET`, then stores the returned
    customer ID, login email, and password hash in `identity.credentials`.
@@ -137,7 +138,7 @@ flowchart LR
 |---|---|---|
 | Identity | Credentials, sessions, MFA and verification data. | A separate registration/login service exists; it and the banking backend currently share PostgreSQL. |
 | Customer | Customer profile and contact data. | A separate Customer Service owns the profile API and `customer.customers` schema; it still shares PostgreSQL and database credentials with other services. |
-| Banking Core | Accounts, transactions, ledger entries, idempotency, and atomic financial operations. | Implemented together in the banking backend and should stay together during initial extraction. |
+| Banking Core | Accounts, transactions, ledger entries, idempotency, and atomic financial operations. | Implemented together in the Banking backend process, behind the Gateway's allow-listed `/api/v1` contract. Keep these modules and writes in the same transaction boundary. |
 | Notification | Notification preferences, delivery history, and retry state. | Not implemented. |
 | Reporting | Read models, statements, and reporting metadata. | Not implemented as a separate service. |
 | API Gateway | Public API routing and cross-cutting edge controls. | Implemented as a separate service; routes auth, customer profile, and banking API paths. |

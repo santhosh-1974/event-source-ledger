@@ -1,122 +1,70 @@
+const accountResponse = {
+  description: "Account response",
+  content: {
+    "application/json": {
+      schema: { $ref: "#/components/schemas/AccountEnvelope" },
+    },
+  },
+};
+
 export const accountPaths = {
   "/accounts": {
-    post: {
+    get: {
       tags: ["Accounts"],
-
-      summary: "Create a bank account",
-
-      description:
-        "Creates a new bank account for an existing customer.",
-
-      requestBody: {
-        required: true,
-
-        content: {
-          "application/json": {
-            schema: {
-              type: "object",
-
-              required: [
-                "customerId",
-                "accountType",
-              ],
-
-              properties: {
-                customerId: {
-                  type: "string",
-                  format: "uuid",
-                  example: "a83a4cb2-7f63-45ff-89f0-4dc8ec6359d8",
-                },
-
-                accountType: {
-                  type: "string",
-
-                  enum: [
-                    "SAVINGS",
-                    "CURRENT",
-                  ],
-
-                  example: "SAVINGS",
-                },
-              },
-            },
-
-            examples: {
-              savings: {
-                summary: "Savings Account",
-
-                value: {
-                  customerId: "a83a4cb2-7f63-45ff-89f0-4dc8ec6359d8",
-                  accountType: "SAVINGS",
-                },
-              },
+      summary: "List the authenticated customer's accounts",
+      responses: {
+        "200": {
+          description: "Accounts belonging to the authenticated customer",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/AccountListEnvelope" },
             },
           },
         },
-      },
-
-      responses: {
-        "201": {
-          description: "Account created successfully",
-        },
-
-        "400": {
-          description: "Validation failed",
-        },
-
-        "404": {
-          description: "Customer not found",
-        },
-
-        "409": {
-          description: "Account already exists",
-        },
+        "401": { $ref: "#/components/responses/Unauthorized" },
       },
     },
-
-    get: {
+    post: {
       tags: ["Accounts"],
-
-      summary: "Get all accounts",
-
-      responses: {
-        "200": {
-          description: "List of accounts",
+      summary: "Create a bank account",
+      description:
+        "The customerId must match the authenticated customer and exist in Customer Service.",
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/CreateAccountRequest" },
+          },
         },
+      },
+      responses: {
+        "201": accountResponse,
+        "400": { $ref: "#/components/responses/ValidationError" },
+        "401": { $ref: "#/components/responses/Unauthorized" },
+        "404": { $ref: "#/components/responses/NotFound" },
+        "409": { $ref: "#/components/responses/Conflict" },
+        "500": { $ref: "#/components/responses/ServerError" },
+        "503": { $ref: "#/components/responses/ServiceUnavailable" },
       },
     },
   },
-
-  "/accounts/{accountNumber}": {
+  "/accounts/{accountId}": {
     get: {
       tags: ["Accounts"],
-
-      summary: "Get account by account number",
-
+      summary: "Get an owned account",
       parameters: [
         {
-          name: "accountNumber",
-
+          name: "accountId",
           in: "path",
-
           required: true,
-
-          schema: {
-            type: "string",
-          },
-
-          example: "1000000001",
+          schema: { type: "string", format: "uuid" },
         },
       ],
-
       responses: {
-        "200": {
-          description: "Account found",
-        },
-
-        "404": {
-          description: "Account not found",
-        },
+        "200": accountResponse,
+        "400": { $ref: "#/components/responses/ValidationError" },
+        "401": { $ref: "#/components/responses/Unauthorized" },
+        "404": { $ref: "#/components/responses/NotFound" },
       },
     },
   },

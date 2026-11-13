@@ -2,68 +2,30 @@ export const transactionPaths = {
   "/transactions/{transactionId}": {
     get: {
       tags: ["Transactions"],
-
-      summary: "Get transaction details",
-
+      summary: "Get transaction details for an owned account",
       description:
-        "Returns a transaction along with all associated ledger entries.",
-
+        "A customer may read a transaction if at least one of its ledger entries belongs to one of their accounts. Other customers receive 404.",
       parameters: [
         {
           name: "transactionId",
-
           in: "path",
-
           required: true,
-
-          schema: {
-            type: "string",
-            format: "uuid",
-          },
-
-          example: "6c8d6bfc-9d1b-4a39-a5a8-cd59d27d3ef9",
+          schema: { type: "string", format: "uuid" },
         },
       ],
-
       responses: {
         "200": {
-          description: "Transaction found",
-
+          description: "Transaction and associated ledger entries",
           content: {
             "application/json": {
-              example: {
-                success: true,
-
-                data: {
-                  id: "6c8d6bfc-9d1b-4a39-a5a8-cd59d27d3ef9",
-
-                  reference: "TXN-20260715-000001",
-
-                  type: "TRANSFER",
-
-                  createdAt: "2026-07-15T10:30:00.000Z",
-
-                  ledgerEntries: [
-                    {
-                      accountId: "acc-1",
-                      entryType: "DEBIT",
-                      amount: "1000.00",
-                    },
-                    {
-                      accountId: "acc-2",
-                      entryType: "CREDIT",
-                      amount: "1000.00",
-                    },
-                  ],
-                },
-              },
+              schema: { $ref: "#/components/schemas/TransactionDetailsEnvelope" },
             },
           },
         },
-
-        "404": {
-          description: "Transaction not found",
-        },
+        "400": { $ref: "#/components/responses/ValidationError" },
+        "401": { $ref: "#/components/responses/Unauthorized" },
+        "404": { $ref: "#/components/responses/NotFound" },
+        "503": { $ref: "#/components/responses/ServiceUnavailable" },
       },
     },
   },

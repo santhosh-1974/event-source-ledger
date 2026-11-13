@@ -28,8 +28,9 @@ details.
 ## Current priority
 
 Phase 2 full-stack integration verification remains incomplete. Phases 3
-Identity extraction and 4 Customer Service extraction are complete. See
-`execution-plan.md` for acceptance criteria and remaining work.
+Identity extraction, 4 Customer Service extraction, and 5 Banking Core
+boundary are complete. See `execution-plan.md` for acceptance criteria and
+remaining work.
 
 ## Important invariants
 
@@ -88,15 +89,17 @@ does not prove an image or container runs.
 
 ### Known validation context
 
-On 2026-11-13, the backend suite passed (151 tests across 16 files), and
+On 2026-11-13, the backend suite passed (156 tests across 18 files), and
 frontend tests passed (32 tests across 11 files). Backend and frontend lint,
 typechecks, and production builds passed; Identity, Customer, and Gateway
 builds passed. The credential migration was rehearsed up/down against a
 synthetic local fixture with IDs, email, and password hash preserved. The
 customer-table migration was rehearsed down/up against `ledger_test` with its
 table OID, rows, and foreign keys preserved. The Customer Service image built
-and Compose configuration validated; the full stack has not been started with
-the new service. Hosted GitHub CI has not run for the uncommitted changes.
+and Compose configuration validated. Banking Core Gateway integration,
+API contract tests, backend lint/typecheck/build, Gateway build, and Compose
+configuration validation passed for Phase 5. Hosted GitHub CI has not run for
+the uncommitted changes.
 
 The local five-service Compose stack was built and started successfully on
 2026-11-11; all five services reached healthy status. The Docker backend

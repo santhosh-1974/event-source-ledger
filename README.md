@@ -232,7 +232,9 @@ controls. For schema details and invariants, see
 
 # Double-Entry Accounting
 
-Every transfer creates two ledger entries.
+Every transfer creates four ledger entries: a balanced debit/credit pair from
+the sender account to the system Cash ledger and another pair from Cash to the
+receiver account. All four entries and the transaction record commit together.
 
 ```
 Transfer ₹1000
@@ -279,10 +281,12 @@ Return Previous Response
 Swagger UI is available at:
 
 ```
-/api-docs
+http://localhost:5000/api-docs
 ```
 
-It provides:
+The versioned Banking Core contract is also routed through the Gateway under
+`/api/v1`. The Gateway only forwards the documented accounts, banking, and
+transactions resources. OpenAPI provides:
 
 - Interactive API explorer
 - Request examples
@@ -655,8 +659,14 @@ npm run lint
 | POST | `/api/v1/banking/withdraw` |
 | POST | `/api/v1/banking/transfer` |
 | GET | `/api/v1/banking/:accountNumber/balance` |
-| GET | `/api/v1/banking/:accountNumber/balance-at-time` |
+| GET | `/api/v1/banking/:accountNumber/balance?at=<ISO-8601 timestamp>` |
 | GET | `/api/v1/banking/:accountNumber/history` |
+
+All routes require a bearer JWT. Deposit, withdrawal, and transfer also require
+a UUID `Idempotency-Key`. The caller must own the relevant account; transfers
+require ownership of both accounts. Ownership failures return 404. See the
+[API Gateway contract](services/api-gateway/README.md#banking-core-api-v1-contract)
+for response and error behavior.
 
 ---
 
@@ -697,7 +707,7 @@ The project includes automated tests covering:
 Current test suite:
 
 ```
-141 Passing Tests
+156 Passing Tests across 18 test files
 ```
 
 ---

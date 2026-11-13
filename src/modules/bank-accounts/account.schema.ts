@@ -9,6 +9,10 @@ export const createAccountSchema = z.object({
     accountType: z.enum(accountTypeValues),
 });
 
+export const accountParamsSchema = z.object({
+    accountId: z.string().uuid("Account id must be a valid UUID"),
+});
+
 export const updateAccountSchema = z.object({
     accountNumber: z.string().trim().min(1, "Account number is required").max(20, "Account number must be at most 20 characters").optional(),
     accountType: z.enum(accountTypeValues).optional(),

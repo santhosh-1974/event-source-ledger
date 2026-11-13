@@ -14,7 +14,7 @@ The API Gateway serves as the single entry point for all client requests, routin
 ```
 Client → API Gateway (4000) → Identity Service (5001) [/api/v1/auth/*]
                             → Customer Service (5002) [/api/v1/customers/*]
-                            → Banking Service (5000) [other /api/v1/*]
+                            → Banking Core (5000) [/api/v1/accounts|banking|transactions]
 ```
 
 ## Features
@@ -62,13 +62,15 @@ LOG_LEVEL=info
 - `POST /api/v1/auth/register` → Identity Service
 - `POST /api/v1/auth/login` → Identity Service
 - `GET, PATCH /api/v1/customers/*` → Customer Service
-- `GET /api/v1/accounts/*` → Banking Service
-- `POST /api/v1/banking/*` → Banking Service
-- `GET /api/v1/transactions/*` → Banking Service
-- All other `/api/v1/*` routes → Banking Service
+- `GET, POST /api/v1/accounts` → Banking Core
+- `GET /api/v1/accounts/:accountId` → Banking Core
+- `POST /api/v1/banking/deposit|withdraw|transfer` → Banking Core
+- `GET /api/v1/banking/:accountNumber/balance|history` → Banking Core
+- `GET /api/v1/transactions/:transactionId` → Banking Core
 
 ### Blocked Routes
 - `/api/v1/internal/*` - Internal service-to-service endpoints are not exposed
+- Other `/api/v1/*` paths are not forwarded to a backend service
 
 ## Development
 
@@ -152,3 +154,23 @@ curl -X PATCH http://localhost:4000/api/v1/customers/me \
 - All requests preserve headers including Authorization tokens
 - Service URLs should be configured via environment variables
 - In production, use HTTPS and configure appropriate CORS origins
+
+## Banking Core API v1 contract
+
+The public contract is rooted at `/api/v1` and is also published as OpenAPI at
+the Banking backend's `/api-docs` endpoint. Every Banking Core route requires a
+valid bearer JWT. Account creation only accepts the authenticated customer's
+ID; account reads, money operations, balances, and history are scoped to that
+customer. A transfer currently requires the caller to own **both** accounts.
+Transaction details are visible to a customer only when the transaction has a
+ledger entry for one of their accounts. Ownership failures return 404 rather
+than disclosing another customer's resources.
+
+Deposit, withdrawal, and transfer require a UUID `Idempotency-Key` header and
+return 201 after their ledger and idempotency records commit atomically.
+Successful responses use `{ "success": true, "data": ... }`. Errors use
+`{ "success": false, "message": "...", "errors"?: [...] }`: malformed input
+returns 400, unauthenticated requests 401, missing or unowned resources 404,
+business and idempotency conflicts 409, unexpected service failures 500, and
+Gateway-to-service failures 503. Unknown Gateway paths return 404 without
+being proxied.

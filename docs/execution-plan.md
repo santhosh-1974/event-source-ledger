@@ -27,7 +27,7 @@ the proposed target are distinguished in [architecture.md](./architecture.md).
 | 2 | Stabilize frontend/backend integration | **Incomplete** — backend and frontend suites pass, but full-stack browser-to-Gateway smoke coverage for registration and core banking journeys is still missing. |
 | 3 | Complete Identity Service extraction | **Complete** — Identity is the sole Gateway auth route, owns credential storage, and has a reversible legacy-data migration; service builds, integration tests, and a migration rehearsal passed locally. |
 | 4 | Extract Customer Service | **Complete** — Customer Service owns profile reads/writes; Banking and Identity use its versioned internal contract. Migration rollback/reapply preserved rows and foreign keys; integration tests and service/container builds pass. |
-| 5 | Establish Banking Core boundary | **Not started** — the current banking backend already contains this domain; extraction and contract hardening remain. |
+| 5 | Establish Banking Core boundary | **Complete** — Gateway forwards only the versioned Banking resources; OpenAPI, authorization/error contracts, and end-to-end Gateway tests cover account and financial flows. Existing atomic ledger, idempotency, ownership, and concurrency semantics remain unchanged. |
 | 6 | Transactional Outbox and SQS | **Not started** |
 | 7 | Notification Service and SES | **Not started** |
 | 8 | Advanced banking operations and reporting | **Not started** |
@@ -156,16 +156,16 @@ requesting the former all-customer listing.
 
 ## Phase 5 — Establish the Banking Core boundary
 
-**Status: Not started**
+**Status: Complete**
 
 ### Work
 
-- Define Banking Core API contracts for accounts, deposits, withdrawals,
-  transfers, balances, and transaction history.
+- Define and publish the versioned Banking Core API contract for accounts,
+  deposits, withdrawals, transfers, balances, transaction history, and errors.
 - Keep accounts, ledger entries, transactions, and idempotency in the same
   service and transactional boundary.
 - Define explicit authorization and customer-ID lookup behavior across the
-  Customer/Banking boundary.
+  Customer/Banking boundary; mask unauthorized resource reads as not found.
 - Move the existing banking modules behind the boundary without changing
   ledger semantics.
 
@@ -175,6 +175,16 @@ requesting the former all-customer listing.
 - Ledger-derived balances, idempotency, row locking, and ownership checks are
   covered by tests.
 - Gateway contracts and error behavior are documented and versioned.
+
+The Gateway now forwards only `/api/v1/accounts`, `/api/v1/banking`, and
+`/api/v1/transactions` to Banking; other Banking-looking paths are rejected
+at the edge. OpenAPI and the Gateway guide describe the v1 request/response,
+authentication, ownership, idempotency, and error contracts. A Gateway
+integration test exercises account creation, deposit, withdrawal, transfer,
+balance, history, transaction details, unauthenticated access, and unknown or
+internal routes. Existing transfer ownership behavior is explicit: both
+accounts must belong to the caller. Backend tests, lint, typecheck, builds,
+Gateway build, and Compose configuration validation passed.
 
 ## Phase 6 — Transactional Outbox and SQS
 
