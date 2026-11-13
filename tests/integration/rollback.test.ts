@@ -27,6 +27,8 @@ afterEach(async () => {
   await query("DROP FUNCTION IF EXISTS fail_rollback_transaction();");
   await query("DROP TRIGGER IF EXISTS fail_rollback_idempotency_trigger ON idempotency_keys;");
   await query("DROP FUNCTION IF EXISTS fail_rollback_idempotency();");
+  await query("DROP TRIGGER IF EXISTS fail_rollback_outbox_trigger ON banking_outbox;");
+  await query("DROP FUNCTION IF EXISTS fail_rollback_outbox();");
 });
 
 async function createCustomer(name: string, email: string, phone: string) {
@@ -97,6 +99,14 @@ async function ledgerEntryCount(): Promise<number> {
   return Number(result.rows[0].count);
 }
 
+async function outboxEventCount(): Promise<number> {
+  const result = await query<{ count: string }>(
+    "SELECT COUNT(*)::text AS count FROM banking_outbox"
+  );
+
+  return Number(result.rows[0].count);
+}
+
 async function createLedgerFailureTrigger(failOn: "DEBIT" | "CREDIT") {
   await query(`
     CREATE FUNCTION fail_rollback_ledger()
@@ -132,7 +142,38 @@ describe("Banking Transaction Rollback API", () => {
     expect(response.status).toBe(500);
     expect(await transactionCount()).toBe(0);
     expect(await ledgerEntryCount()).toBe(0);
+    expect(await outboxEventCount()).toBe(0);
     expect(await getBalance(sender.accountNumber)).toBe("0.00");
+  });
+
+  it("should roll back financial writes when the outbox insert fails", async () => {
+    const { sender } = await createAccounts();
+    await query(`
+      CREATE FUNCTION fail_rollback_outbox()
+      RETURNS trigger
+      LANGUAGE plpgsql
+      AS $$
+      BEGIN
+        RAISE EXCEPTION 'forced outbox failure';
+      END;
+      $$;
+    `);
+    await query(`
+      CREATE TRIGGER fail_rollback_outbox_trigger
+      BEFORE INSERT ON banking_outbox
+      FOR EACH ROW
+      EXECUTE FUNCTION fail_rollback_outbox();
+    `);
+
+    const response = await request(app)
+      .post(DEPOSIT_URL)
+      .set("Idempotency-Key", crypto.randomUUID())
+      .send({ accountNumber: sender.accountNumber, amount: "500.00" });
+
+    expect(response.status).toBe(500);
+    expect(await transactionCount()).toBe(0);
+    expect(await ledgerEntryCount()).toBe(0);
+    expect(await outboxEventCount()).toBe(0);
   });
 
   it("should roll back a withdrawal after the debit entry and before the credit entry", async () => {
@@ -148,6 +189,7 @@ describe("Banking Transaction Rollback API", () => {
     expect(response.status).toBe(500);
     expect(await transactionCount()).toBe(1);
     expect(await ledgerEntryCount()).toBe(2);
+    expect(await outboxEventCount()).toBe(1);
     expect(await getBalance(sender.accountNumber)).toBe("1000.00");
   });
 
@@ -168,6 +210,7 @@ describe("Banking Transaction Rollback API", () => {
     expect(response.status).toBe(500);
     expect(await transactionCount()).toBe(1);
     expect(await ledgerEntryCount()).toBe(2);
+    expect(await outboxEventCount()).toBe(1);
     expect(await getBalance(sender.accountNumber)).toBe("1000.00");
     expect(await getBalance(receiver.accountNumber)).toBe("0.00");
   });
@@ -199,6 +242,7 @@ describe("Banking Transaction Rollback API", () => {
     expect(response.status).toBe(500);
     expect(await transactionCount()).toBe(0);
     expect(await ledgerEntryCount()).toBe(0);
+    expect(await outboxEventCount()).toBe(0);
     expect(await getBalance(sender.accountNumber)).toBe("0.00");
   });
 
@@ -232,6 +276,7 @@ describe("Banking Transaction Rollback API", () => {
     expect(response.status).toBe(500);
     expect(await transactionCount()).toBe(0);
     expect(await ledgerEntryCount()).toBe(0);
+    expect(await outboxEventCount()).toBe(0);
     expect(await getBalance(sender.accountNumber)).toBe("0.00");
   });
 

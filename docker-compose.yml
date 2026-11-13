@@ -137,6 +137,9 @@ services:
       SEED_ON_START: "true"
       IDEMPOTENCY_TTL_SECONDS: ${IDEMPOTENCY_TTL_SECONDS:-3600}
       IDEMPOTENCY_CLEANUP_INTERVAL_MS: ${IDEMPOTENCY_CLEANUP_INTERVAL_MS:-3600000}
+      OUTBOX_PUBLISHER_ENABLED: ${OUTBOX_PUBLISHER_ENABLED:-false}
+      OUTBOX_SQS_QUEUE_URL: ${OUTBOX_SQS_QUEUE_URL:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     ports:
       # Loopback only for local API debugging; customer endpoints are hosted by
       # Customer Service and are routed through the Gateway.

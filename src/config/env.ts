@@ -21,6 +21,26 @@ const envSchema=z.object({
     // No default — must be explicitly set in the environment.
     CUSTOMER_PROVISIONING_SECRET: z.string().min(1),
     CUSTOMER_SERVICE_URL: z.string().url(),
+    OUTBOX_PUBLISHER_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+    OUTBOX_SQS_QUEUE_URL: z.preprocess(
+        (value) => value === "" ? undefined : value,
+        z.string().url().optional()
+    ),
+    AWS_REGION: z.string().min(1).default("us-east-1"),
+    OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(100).default(1_000),
+    OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(10).default(10),
+    OUTBOX_LEASE_MS: z.coerce.number().int().min(1_000).default(60_000),
+    OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(8),
+    OUTBOX_RETRY_BASE_MS: z.coerce.number().int().min(1).default(1_000),
+    OUTBOX_RETRY_MAX_MS: z.coerce.number().int().min(1).default(60_000),
+}).superRefine((config, context) => {
+    if (config.OUTBOX_PUBLISHER_ENABLED && !config.OUTBOX_SQS_QUEUE_URL) {
+        context.addIssue({
+            code: "custom",
+            path: ["OUTBOX_SQS_QUEUE_URL"],
+            message: "OUTBOX_SQS_QUEUE_URL is required when the publisher is enabled",
+        });
+    }
 })
 
 const parsed=envSchema.safeParse(process.env)

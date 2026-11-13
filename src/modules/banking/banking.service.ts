@@ -8,6 +8,7 @@ import * as bankAccountRepository from "../bank-accounts/account.repository";
 import * as ledgerRepository from "../ledger/ledger.repository";
 import * as transactionRepository from "../transactions/transaction.repository";
 import * as idempotencyService from "../idempotency/idempotency.service";
+import { appendOutboxEvent, newEventId } from "../outbox/outbox.repository";
 
 import { depositInput, transferInput, withdrawInput } from "./banking.schema";
 import { accountBalanceResult, depositResult, transferResult, transactionHistoryResult, withdrawResult } from "./banking.types";
@@ -29,6 +30,11 @@ function assertAccountIsOperable(status: string, subject = "Account"): void {
 function toCents(amount: string): bigint {
   const [whole, fraction = ""] = amount.split(".");
   return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+}
+
+function formatCents(amount: string): string {
+  const cents = toCents(amount);
+  return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
 }
 
 async function assertTransactionBalanced(transactionId: string, client: PoolClient): Promise<void> {
@@ -112,6 +118,25 @@ export async function deposit(input: depositInput, idempotencyKey: string): Prom
     await ledgerRepository.createLedgerEntry(transaction.id, customerLedger.id, "CREDIT", input.amount, client);
     await assertTransactionBalanced(transaction.id, client);
 
+    await appendOutboxEvent(
+      {
+        eventId: newEventId(),
+        eventType: "banking.deposit.completed",
+        schemaVersion: 1,
+        occurredAt: new Date().toISOString(),
+        aggregateType: "transaction",
+        aggregateId: transaction.id,
+        payload: {
+          transactionId: transaction.id,
+          reference: transaction.reference,
+          customerId: bankAccount.customerId,
+          accountId: bankAccount.id,
+          amount: formatCents(input.amount),
+        },
+      },
+      client
+    );
+
     return {
       transactionId: transaction.id,
       reference: transaction.reference,
@@ -154,6 +179,25 @@ export async function withdraw(input: withdrawInput, idempotencyKey: string): Pr
       await ledgerRepository.createLedgerEntry(transaction.id, customerLedger.id, "DEBIT", input.amount, client);
       await ledgerRepository.createLedgerEntry(transaction.id, cashLedger.id, "CREDIT", input.amount, client);
       await assertTransactionBalanced(transaction.id, client);
+
+      await appendOutboxEvent(
+        {
+          eventId: newEventId(),
+          eventType: "banking.withdrawal.completed",
+          schemaVersion: 1,
+          occurredAt: new Date().toISOString(),
+          aggregateType: "transaction",
+          aggregateId: transaction.id,
+          payload: {
+            transactionId: transaction.id,
+            reference: transaction.reference,
+            customerId: lockedAccount.customerId,
+            accountId: lockedAccount.id,
+            amount: formatCents(input.amount),
+          },
+        },
+        client
+      );
 
       return {
         transactionId: transaction.id,
@@ -232,6 +276,27 @@ export async function transfer(input: transferInput, idempotencyKey: string): Pr
       await ledgerRepository.createLedgerEntry(transaction.id, cashLedger.id, "DEBIT", input.amount, client);
       await ledgerRepository.createLedgerEntry(transaction.id, receiverLedger.id, "CREDIT", input.amount, client);
       await assertTransactionBalanced(transaction.id, client);
+
+      await appendOutboxEvent(
+        {
+          eventId: newEventId(),
+          eventType: "banking.transfer.completed",
+          schemaVersion: 1,
+          occurredAt: new Date().toISOString(),
+          aggregateType: "transaction",
+          aggregateId: transaction.id,
+          payload: {
+            transactionId: transaction.id,
+            reference: transaction.reference,
+            senderCustomerId: senderAccount.customerId,
+            receiverCustomerId: receiverAccount.customerId,
+            fromAccountId: senderAccount.id,
+            toAccountId: receiverAccount.id,
+            amount: formatCents(input.amount),
+          },
+        },
+        client
+      );
 
       return {
         transactionId: transaction.id,

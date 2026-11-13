@@ -15,6 +15,7 @@
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
     "migrate:up:test": "node scripts/migrate-test.cjs",
+    "outbox:replay": "tsx src/cli/replayDeadOutbox.ts",
     "seed": "tsx src/database/seed.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
@@ -23,6 +24,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1168.0",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
     "cors": "^2.8.6",

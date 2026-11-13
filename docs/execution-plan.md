@@ -28,7 +28,7 @@ the proposed target are distinguished in [architecture.md](./architecture.md).
 | 3 | Complete Identity Service extraction | **Complete** — Identity is the sole Gateway auth route, owns credential storage, and has a reversible legacy-data migration; service builds, integration tests, and a migration rehearsal passed locally. |
 | 4 | Extract Customer Service | **Complete** — Customer Service owns profile reads/writes; Banking and Identity use its versioned internal contract. Migration rollback/reapply preserved rows and foreign keys; integration tests and service/container builds pass. |
 | 5 | Establish Banking Core boundary | **Complete** — Gateway forwards only the versioned Banking resources; OpenAPI, authorization/error contracts, and end-to-end Gateway tests cover account and financial flows. Existing atomic ledger, idempotency, ownership, and concurrency semantics remain unchanged. |
-| 6 | Transactional Outbox and SQS | **Not started** |
+| 6 | Transactional Outbox and SQS | **Complete (locally validated; AWS deployment remains in Phase 11)** |
 | 7 | Notification Service and SES | **Not started** |
 | 8 | Advanced banking operations and reporting | **Not started** |
 | 9 | Professional banking frontend | **In progress / partial** — current banking UI exists; planned navigation and capabilities remain incomplete. |
@@ -188,7 +188,7 @@ Gateway build, and Compose configuration validation passed.
 
 ## Phase 6 — Transactional Outbox and SQS
 
-**Status: Not started**
+**Status: Complete (AWS deployment deferred to Phase 11)**
 
 ### Work
 
@@ -201,6 +201,8 @@ Gateway build, and Compose configuration validation passed.
 - Configure SQS queues and a DLQ through infrastructure-as-code; do not make
   cloud resources a prerequisite for local development.
 - Test duplicate publication, crashes before/after publish, and poison events.
+- Keep publisher opt-in, provide a guarded outbox replay command, and make
+  downstream processing idempotent by consumer/event ID.
 
 ### Exit criteria
 
@@ -208,6 +210,18 @@ Gateway build, and Compose configuration validation passed.
 - An uncommitted transaction cannot publish an event.
 - Publisher and consumer processing tolerate at-least-once delivery.
 - DLQ redrive/replay is documented and tested.
+
+The Banking service now writes versioned deposit, withdrawal, and transfer
+events atomically with ledger transactions. Its opt-in SQS publisher uses
+leased claims, bounded exponential retry, poison-event handling, and structured
+logs. A transactional inbox helper deduplicates consumers, and the guarded
+replay command preserves stable event IDs. Terraform defines an encrypted
+standard queue, DLQ, redrive policy, and least-privilege publisher policy.
+Focused integration tests cover rollback, idempotency replay, lease expiry,
+consumer deduplication, and dead-event replay; the backend suite, lint,
+typecheck/build, Compose validation, and Terraform validation pass. AWS
+resources were not provisioned or exercised; deployment and live queue
+redrive remain out of scope until Phase 11.
 
 ## Phase 7 — Notification Service and SES
 
