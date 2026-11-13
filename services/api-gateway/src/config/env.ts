@@ -10,6 +10,10 @@ const envSchema = z.object({
   IDENTITY_SERVICE_URL: z.string().url(),
   CUSTOMER_SERVICE_URL: z.string().url(),
   BANKING_SERVICE_URL: z.string().url(),
+  NOTIFICATION_SERVICE_URL: z
+    .string()
+    .url()
+    .default("http://localhost:5003"),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
 });
 

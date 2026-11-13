@@ -58,7 +58,7 @@ async function listTables(
     `
     SELECT schemaname, tablename
     FROM pg_tables
-    WHERE schemaname IN ('public', 'customer', 'identity')
+    WHERE schemaname IN ('public', 'customer', 'identity', 'notification')
       AND tablename <> $1
     ORDER BY schemaname, tablename;
     `,

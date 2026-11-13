@@ -71,3 +71,15 @@ export async function getCustomerExistenceHandler(
   const customer = await getCustomerById(customerId);
   res.status(200).json({ success: true, data: { id: customer.id } });
 }
+
+export async function getCustomerContactHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const customerId = z.uuid().parse(req.params.customerId);
+  const customer = await getCustomerById(customerId);
+  res.status(200).json({
+    success: true,
+    data: { id: customer.id, email: customer.email },
+  });
+}

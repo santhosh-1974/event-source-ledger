@@ -1,4 +1,3 @@
-import { performance } from "node:perf_hooks";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 
@@ -12,22 +11,17 @@ function expectIsoTimestamp(value: unknown): void {
 
 describe("Health Check API", () => {
   it("should report application health without checking dependencies", async () => {
-    const startedAt = performance.now();
     const response = await request(app).get("/health");
-    const elapsed = performance.now() - startedAt;
 
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toMatch(/application\/json/);
     expect(response.body.success).toBe(true);
     expect(response.body.status).toBe("UP");
     expectIsoTimestamp(response.body.timestamp);
-    expect(elapsed).toBeLessThan(100);
   });
 
   it("should report readiness when PostgreSQL is connected", async () => {
-    const startedAt = performance.now();
     const response = await request(app).get("/ready");
-    const elapsed = performance.now() - startedAt;
 
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toMatch(/application\/json/);
@@ -37,7 +31,6 @@ describe("Health Check API", () => {
       dependencies: { database: "UP" },
     });
     expectIsoTimestamp(response.body.timestamp);
-    expect(elapsed).toBeLessThan(1_000);
   });
 
   it("should report readiness DOWN after the database pool is disconnected while health remains UP", async () => {

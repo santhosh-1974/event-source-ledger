@@ -53,6 +53,7 @@ jobs:
       IDEMPOTENCY_TTL_SECONDS: 3600
       IDEMPOTENCY_CLEANUP_INTERVAL_MS: 3600000
       CUSTOMER_PROVISIONING_SECRET: ci-only-customer-provisioning-secret
+      NOTIFICATION_CUSTOMER_LOOKUP_SECRET: ci-only-notification-contact-secret
 
     steps:
       - name: Checkout Repository
@@ -70,6 +71,12 @@ jobs:
       - name: Install Customer Service Dependencies
         run: npm ci --prefix services/customer-service
 
+      - name: Install Notification Service Dependencies
+        run: npm ci --prefix services/notification-service
+
+      - name: Install API Gateway Dependencies
+        run: npm ci --prefix services/api-gateway
+
       - name: Verify TypeScript
         run: npm run typecheck
 
@@ -81,6 +88,12 @@ jobs:
 
       - name: Build Customer Service
         run: npm run build --prefix services/customer-service
+
+      - name: Build Notification Service
+        run: npm run build --prefix services/notification-service
+
+      - name: Build API Gateway
+        run: npm run build --prefix services/api-gateway
 
       - name: Wait for PostgreSQL
         run: |

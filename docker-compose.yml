@@ -3,11 +3,12 @@
 # =============================================================================
 #   docker compose up --build
 #
-# Services (6):
+# Services (7):
 #   postgres          PostgreSQL 17 (named volume, healthchecked)
 #   banking-backend   event-sourced monolith + ledger API        :5000
 #   identity-service  registration / login / JWT issuance        :5001
 #   customer-service  customer profile ownership                 :5002
+#   notification-service consent-aware email notifications        :5003
 #   api-gateway       single browser-facing entry point          :4000
 #   frontend          React (Vite) build served by nginx         :5173
 #
@@ -88,6 +89,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ledger}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledger_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-ledger}
+      NOTIFICATION_CUSTOMER_LOOKUP_SECRET: ${NOTIFICATION_CUSTOMER_LOOKUP_SECRET:-dev-only-insecure-notification-contact-secret}
       NODE_ENV: production
     depends_on:
       postgres:
@@ -208,6 +210,55 @@ services:
       - banking-network
 
   # ---------------------------------------------------------------------------
+  # Notification Service — consent-aware SQS consumer and SES delivery
+  # ---------------------------------------------------------------------------
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    image: event-source-ledger/notification-service:local
+    <<: *restart-policy
+    environment:
+      PORT: 5003
+      NODE_ENV: production
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledger_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ledger}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-jwt-secret-change-me-32chars}
+      CUSTOMER_SERVICE_URL: http://customer-service:5002
+      NOTIFICATION_CUSTOMER_LOOKUP_SECRET: ${NOTIFICATION_CUSTOMER_LOOKUP_SECRET:-dev-only-insecure-notification-contact-secret}
+      NOTIFICATION_CONSUMER_ENABLED: ${NOTIFICATION_CONSUMER_ENABLED:-false}
+      NOTIFICATION_SQS_QUEUE_URL: ${NOTIFICATION_SQS_QUEUE_URL:-}
+      NOTIFICATION_SES_ENABLED: ${NOTIFICATION_SES_ENABLED:-false}
+      NOTIFICATION_SES_FROM_EMAIL: ${NOTIFICATION_SES_FROM_EMAIL:-}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
+      NOTIFICATION_SQS_VISIBILITY_TIMEOUT_SECONDS: ${NOTIFICATION_SQS_VISIBILITY_TIMEOUT_SECONDS:-300}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+    ports:
+      - "127.0.0.1:5003:5003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      banking-backend:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5003/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - banking-network
+
+  # ---------------------------------------------------------------------------
   # API Gateway — the only entry point the browser talks to
   # ---------------------------------------------------------------------------
   api-gateway:
@@ -224,6 +275,7 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:5001
       CUSTOMER_SERVICE_URL: http://customer-service:5002
       BANKING_SERVICE_URL: http://banking-backend:5000
+      NOTIFICATION_SERVICE_URL: http://notification-service:5003
     ports:
       - "4000:4000"
     depends_on:
@@ -232,6 +284,8 @@ services:
       customer-service:
         condition: service_healthy
       banking-backend:
+        condition: service_healthy
+      notification-service:
         condition: service_healthy
     healthcheck:
       test:

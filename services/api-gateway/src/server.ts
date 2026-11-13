@@ -13,6 +13,7 @@ server.listen(env.PORT, () => {
     env: env.NODE_ENV,
     identityService: env.IDENTITY_SERVICE_URL,
     bankingService: env.BANKING_SERVICE_URL,
+    notificationService: env.NOTIFICATION_SERVICE_URL,
   });
 });
 

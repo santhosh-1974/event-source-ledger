@@ -16,6 +16,12 @@ if (!process.env.CUSTOMER_PROVISIONING_SECRET) {
   process.env.CUSTOMER_PROVISIONING_SECRET =
     "integration-test-only-customer-provisioning-secret";
 }
+process.env.NOTIFICATION_CUSTOMER_LOOKUP_SECRET ??=
+  "integration-test-only-notification-contact-secret";
+process.env.NOTIFICATION_CONSUMER_ENABLED ??= "false";
+process.env.NOTIFICATION_SES_ENABLED ??= "false";
+process.env.NOTIFICATION_SQS_QUEUE_URL ??= "";
+process.env.NOTIFICATION_SES_FROM_EMAIL ??= "";
 
 const { default: customerServiceApp } = await import(
   "../../services/customer-service/src/app"
@@ -36,6 +42,25 @@ if (!address || typeof address === "string") {
 
 process.env.CUSTOMER_SERVICE_URL = `http://127.0.0.1:${address.port}`;
 process.env.IDENTITY_SERVICE_URL ??= "http://127.0.0.1:1";
+
+const { default: notificationServiceApp } = await import(
+  "../../services/notification-service/src/app"
+);
+const { pool: notificationServicePool } = await import(
+  "../../services/notification-service/src/database/database"
+);
+const notificationServer = createServer(notificationServiceApp);
+await new Promise<void>((resolve, reject) => {
+  notificationServer.once("error", reject);
+  notificationServer.listen(0, "127.0.0.1", resolve);
+});
+
+const notificationAddress = notificationServer.address();
+if (!notificationAddress || typeof notificationAddress === "string") {
+  throw new Error("Could not determine the Notification Service test port");
+}
+process.env.NOTIFICATION_SERVICE_URL =
+  `http://127.0.0.1:${notificationAddress.port}`;
 
 const { default: bankingApp } = await import("../../src/app");
 const bankingServer = createServer(bankingApp);
@@ -63,6 +88,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) => {
+    notificationServer.close((error) =>
+      error ? reject(error) : resolve()
+    );
+  });
+  await new Promise<void>((resolve, reject) => {
     bankingServer.close((error) =>
       error ? reject(error) : resolve()
     );
@@ -72,5 +102,6 @@ afterAll(async () => {
       error ? reject(error) : resolve()
     );
   });
+  await notificationServicePool.end();
   await customerServicePool.end();
 });

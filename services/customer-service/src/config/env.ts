@@ -13,6 +13,7 @@ const envSchema = z.object({
   POSTGRES_DB: z.string().min(1),
   JWT_SECRET: z.string().min(32),
   CUSTOMER_PROVISIONING_SECRET: z.string().min(1),
+  NOTIFICATION_CUSTOMER_LOOKUP_SECRET: z.string().min(1),
 });
 
 export const env = envSchema.parse(process.env);

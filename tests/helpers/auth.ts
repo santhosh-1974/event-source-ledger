@@ -50,6 +50,7 @@ export function authenticatedRequest(app: Express, token: string) {
   return {
     get: (url: string) => withBearer(request(app).get(url), token),
     post: (url: string) => withBearer(request(app).post(url), token),
+    put: (url: string) => withBearer(request(app).put(url), token),
     patch: (url: string) => withBearer(request(app).patch(url), token),
     delete: (url: string) => withBearer(request(app).delete(url), token),
   };

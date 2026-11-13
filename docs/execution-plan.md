@@ -29,10 +29,10 @@ the proposed target are distinguished in [architecture.md](./architecture.md).
 | 4 | Extract Customer Service | **Complete** — Customer Service owns profile reads/writes; Banking and Identity use its versioned internal contract. Migration rollback/reapply preserved rows and foreign keys; integration tests and service/container builds pass. |
 | 5 | Establish Banking Core boundary | **Complete** — Gateway forwards only the versioned Banking resources; OpenAPI, authorization/error contracts, and end-to-end Gateway tests cover account and financial flows. Existing atomic ledger, idempotency, ownership, and concurrency semantics remain unchanged. |
 | 6 | Transactional Outbox and SQS | **Complete (locally validated; AWS deployment remains in Phase 11)** |
-| 7 | Notification Service and SES | **Not started** |
+| 7 | Notification Service and SES | **Complete locally; backend tests, service builds, Compose configuration, and Terraform validation pass. Docker image build not run because the Docker daemon is unavailable; AWS deployment remains in Phase 11.** |
 | 8 | Advanced banking operations and reporting | **Not started** |
 | 9 | Professional banking frontend | **In progress / partial** — current banking UI exists; planned navigation and capabilities remain incomplete. |
-| 10 | Containerization and CI/CD | **Partial** — local six-service Docker Compose is implemented; CI, registry publishing, and production hardening remain. |
+| 10 | Containerization and CI/CD | **Partial** — local seven-service Docker Compose, CI validation, and all service build checks exist; image publishing and production hardening remain. |
 | 11 | AWS deployment | **Not started** |
 | 12 | Monitoring, security, and performance | **Not started** |
 
@@ -225,7 +225,7 @@ redrive remain out of scope until Phase 11.
 
 ## Phase 7 — Notification Service and SES
 
-**Status: Not started**
+**Status: Complete locally; live AWS deployment deferred to Phase 11**
 
 ### Work
 
@@ -236,6 +236,10 @@ redrive remain out of scope until Phase 11.
   credentials.
 - Add bounded retries, DLQ handling, and safe replay without duplicate
   customer-facing mail where possible.
+- Add the Notification Service to Compose and CI, authenticated preference
+  routes to the Gateway, and a least-privilege SQS/SES worker IAM policy.
+- Document opt-in consent, redelivery/DLQ operations, replay safeguards, and
+  the SES-accepted/database-unrecorded duplicate-delivery window.
 
 ### Exit criteria
 
@@ -243,6 +247,26 @@ redrive remain out of scope until Phase 11.
   committed banking transaction.
 - Duplicate events do not produce duplicate logical notifications.
 - Delivery failure, retries, and DLQ state are observable.
+
+### Delivered and validated
+
+The Notification Service now validates and deduplicates Banking events, stores
+default-deny preferences and consent history, checks consent before contact
+lookup, and records per-recipient delivery attempts with leases and bounded
+retries. Its opt-in SQS worker acknowledges only fully terminal events; SES
+delivery uses the workload credential chain. Gateway preference routes,
+Customer Service's separately secret-protected contact lookup, Compose, CI,
+and scoped worker IAM policy are implemented. Integration tests cover consent,
+deduplication, transfer recipients, exhausted retries, safe replay, and Gateway
+authentication. All 175 backend tests, lint, typecheck, service builds, Compose
+configuration validation, and Terraform formatting/validation pass. A Docker
+image build could not be run because the Docker daemon is unavailable in this
+environment.
+
+AWS resources were not provisioned or exercised. Production SES verification,
+queue deployment/redrive, and workload role attachment remain in Phase 11.
+Because SES acceptance and PostgreSQL status persistence are not atomic, a
+process crash in that gap can still result in a duplicate email after redelivery.
 
 ## Phase 8 — Advanced banking operations and reporting
 
@@ -297,20 +321,23 @@ redrive remain out of scope until Phase 11.
 
 ### Already delivered
 
-- Multi-stage Dockerfiles for the banking backend, Identity Service, API
-  Gateway, and frontend; service-specific build ignores.
-- Compose services for PostgreSQL 17, Banking, Identity, Gateway, and frontend.
+- Multi-stage Dockerfiles for the banking backend, Identity, Customer,
+  Notification, API Gateway, and frontend; service-specific build ignores.
+- Compose services for PostgreSQL 17, Banking, Identity, Customer,
+  Notification, Gateway, and frontend.
 - Health checks, dependency ordering, named PostgreSQL volume, private
   application ports, and migration/seed startup.
 - Local image build and container startup were verified on 2026-11-11.
+- Notification Service TypeScript build and Compose configuration validate;
+  its Docker image build could not be checked because the Docker daemon was
+  unavailable in this environment.
 
 ### Remaining work
 
-- Add CI validation for builds, tests, Compose config, and image builds.
 - Add image tagging, vulnerability scanning, and ECR publishing.
 - Define production runtime configuration, resource limits, graceful
   shutdown, deployment/rollback, and database migration operations.
-- Re-verify all five builds and health checks after Dockerfile or dependency
+- Re-verify all service image builds and health checks after Dockerfile or dependency
   changes.
 
 ### Exit criteria

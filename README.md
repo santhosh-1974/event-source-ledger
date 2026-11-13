@@ -178,7 +178,8 @@ backend
 ├── services
 │   ├── api-gateway
 │   ├── customer-service
-│   └── identity-service
+│   ├── identity-service
+│   └── notification-service
 │
 ├── tests
 │   ├── concurrency
@@ -389,9 +390,9 @@ docker compose down
 
 ### Docker Services
 
-Compose starts PostgreSQL 17 and the Banking backend applies pending migrations and an idempotent initial seed. Customer Service waits for its schema to be ready; Identity and Gateway then wait for their dependencies, and the frontend waits for the Gateway. All six services have health checks. PostgreSQL data is stored in the `ledger-postgres-data` named volume and is preserved by `docker compose down`.
+Compose starts PostgreSQL 17 and the Banking backend applies pending migrations and an idempotent initial seed. Customer Service waits for its schema to be ready; Identity and Notification wait for their dependencies; Gateway waits for all routed services; and the frontend waits for Gateway. All seven services have health checks. PostgreSQL data is stored in the `ledger-postgres-data` named volume and is preserved by `docker compose down`.
 
-The internal service URLs are `postgres:5432`, `http://banking-backend:5000`, `http://identity-service:5001`, `http://customer-service:5002`, and `http://api-gateway:4000`. Customer Service is not published to the host; internal customer routes are blocked at the Gateway.
+The internal service URLs are `postgres:5432`, `http://banking-backend:5000`, `http://identity-service:5001`, `http://customer-service:5002`, `http://notification-service:5003`, and `http://api-gateway:4000`. Customer Service is not published to the host; internal customer routes are blocked at the Gateway. Notification's SQS consumer and SES sender are disabled by default; see [Notification Service operations](docs/notifications.md) before enabling them.
 
 ### Building Individual Services
 
@@ -402,6 +403,7 @@ docker build -t banking-backend .
 docker build -t identity-service ./services/identity-service
 docker build -t customer-service ./services/customer-service
 docker build -t api-gateway ./services/api-gateway
+docker build -t notification-service ./services/notification-service
 docker build -t frontend ./frontend
 ```
 
@@ -678,6 +680,20 @@ for response and error behavior.
 
 ---
 
+## Notification Preferences
+
+| Method | Endpoint |
+|---------|----------|
+| GET | `/api/v1/notifications/preferences` |
+| PUT | `/api/v1/notifications/preferences` |
+
+Both require a bearer JWT and apply only to the authenticated customer. Email
+is opt-in; enabling it requires both `emailEnabled: true` and `consent: true`.
+See [Notification Service operations](docs/notifications.md) for retry, DLQ,
+and replay behavior.
+
+---
+
 ## Health
 
 | Method | Endpoint |
@@ -703,11 +719,12 @@ The project includes automated tests covering:
 - Rollback
 - Concurrency
 - Health Checks
+- Notification consent, delivery deduplication, retries, and replay
 
 Current test suite:
 
 ```
-156 Passing Tests across 18 test files
+See `npm test` for the current passing test count.
 ```
 
 ---

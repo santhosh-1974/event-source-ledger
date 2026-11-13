@@ -101,3 +101,7 @@ export const bankingServiceProxy = createProxyMiddleware({
     }
   },
 });
+
+export const notificationServiceProxy = createServiceProxy(
+  env.NOTIFICATION_SERVICE_URL
+);

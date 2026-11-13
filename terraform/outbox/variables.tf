@@ -38,7 +38,7 @@ variable "dlq_retention_seconds" {
 variable "visibility_timeout_seconds" {
   description = "Visibility timeout for messages consumed from the queue."
   type        = number
-  default     = 60
+  default     = 300
 
   validation {
     condition     = var.visibility_timeout_seconds >= 0 && var.visibility_timeout_seconds <= 43200

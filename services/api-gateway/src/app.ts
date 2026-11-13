@@ -8,6 +8,7 @@ import {
   bankingServiceProxy,
   customerServiceProxy,
   identityServiceProxy,
+  notificationServiceProxy,
 } from "./middleware/proxy.js";
 
 const app = express();
@@ -23,6 +24,13 @@ app.use(cors());
 app.use(
   pinoHttp({
     logger,
+    serializers: {
+      req: (req) => ({
+        id: req.id,
+        method: req.method,
+        url: req.url,
+      }),
+    },
   })
 );
 
@@ -49,6 +57,7 @@ app.use("/api/v1/internal", (_req: Request, res: Response) => {
 
 // Route customer profile requests to the Customer Service.
 app.use("/api/v1/customers", customerServiceProxy);
+app.use("/api/v1/notifications", notificationServiceProxy);
 
 // Expose only the versioned Banking Core resources through the public Gateway.
 app.use("/api/v1/accounts", bankingServiceProxy);
