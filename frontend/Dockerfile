@@ -2,10 +2,9 @@
 #
 # React Frontend — Vite production build served by nginx.
 #
-# The browser calls the API Gateway on the *host* (http://localhost:4000/api/v1),
-# never the Docker service name: VITE_API_BASE_URL is baked in at build time and
-# is read by the client-side bundle. Override it with `--build-arg` if the stack
-# is published on a different host/port.
+# The browser uses the same-origin /api/v1 path and nginx proxies it to the
+# Gateway. VITE_API_BASE_URL is baked into the bundle at build time and can be
+# overridden with --build-arg for a separately hosted API.
 #
 # Route handling: the app uses createBrowserRouter, so nginx must serve
 # index.html for unknown paths (SPA fallback) or a refresh on /customers would
@@ -19,7 +18,7 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 # Browser-side API base URL. This is a host URL, NOT a service name.
-ARG VITE_API_BASE_URL=http://localhost:4000/api/v1
+ARG VITE_API_BASE_URL=/api/v1
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
 COPY package.json package-lock.json ./

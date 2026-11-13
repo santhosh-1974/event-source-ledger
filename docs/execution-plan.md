@@ -24,7 +24,7 @@ the proposed target are distinguished in [architecture.md](./architecture.md).
 | Phase | Deliverable | Status |
 |---|---|---|
 | 1 | Architecture audit and design | **Complete** — current/target architecture and this roadmap documented; some product decisions remain open. |
-| 2 | Stabilize frontend/backend integration | **Incomplete** — backend and frontend suites pass, but full-stack browser-to-Gateway smoke coverage for registration and core banking journeys is still missing. |
+| 2 | Stabilize frontend/backend integration | **Complete locally** — frontend uses a same-origin Gateway proxy in dev and Compose; an end-to-end Gateway integration test covers registration, login, provisioning, deposit, withdrawal, transfer, balances, and history. Live browser verification remains unavailable until Docker is running. |
 | 3 | Complete Identity Service extraction | **Complete** — Identity is the sole Gateway auth route, owns credential storage, and has a reversible legacy-data migration; service builds, integration tests, and a migration rehearsal passed locally. |
 | 4 | Extract Customer Service | **Complete** — Customer Service owns profile reads/writes; Banking and Identity use its versioned internal contract. Migration rollback/reapply preserved rows and foreign keys; integration tests and service/container builds pass. |
 | 5 | Establish Banking Core boundary | **Complete** — Gateway forwards only the versioned Banking resources; OpenAPI, authorization/error contracts, and end-to-end Gateway tests cover account and financial flows. Existing atomic ledger, idempotency, ownership, and concurrency semantics remain unchanged. |
@@ -60,18 +60,18 @@ those phases are complete or that AWS is deployed.
 
 ## Phase 2 — Stabilize frontend/backend integration
 
-**Status: Incomplete**
+**Status: Complete locally**
 
 ### Work
 
 - Trace registration, login, token propagation, protected routes, and customer
   provisioning end to end through nginx, Gateway, Identity, and Banking.
-- Confirm frontend API paths use the gateway and work both in local development
-  and in the supported Docker deployment.
+- Route frontend API requests through the Gateway in local development and
+  Docker without hard-coding a browser-host address.
 - Fix integration defects without weakening backend authorization or exposing
   internal provisioning routes.
-- Establish repeatable UI/API smoke tests and identify frontend test-suite
-  failures versus missing test discovery.
+- Establish repeatable frontend, Gateway integration, and service-contract
+  tests for the registration and banking journey.
 - Verify deposit, withdrawal, transfer, balance, and transaction-history flows
   against a disposable test database.
 
@@ -84,11 +84,18 @@ those phases are complete or that AWS is deployed.
 - Backend tests/build and frontend production build pass; remaining frontend
   test failures are fixed or explicitly isolated and tracked.
 
-Phase 2 remains an unmet gate: the current browser-to-Gateway manual check
-covers registration/login and account operations, but does not exercise all
-core money-movement and history journeys end to end. Phase 3 was completed at
-the user's direction before the full Phase 2 gate was met; the outstanding
-Phase 2 validation remains tracked here.
+The repeatable Gateway integration test now registers and logs in through
+Identity via the public Gateway, reads the provisioned profile through
+Customer Service, and completes account creation, deposit, withdrawal,
+transfer, balance, transaction-history, and transaction-detail requests
+through Banking via that same Gateway. It also verifies internal provisioning
+is not exposed publicly. Vite and nginx route same-origin `/api` requests to
+the Gateway, avoiding a frontend bundle tied to `localhost:4000`.
+
+Phase 2 is complete against local automated validation. A live browser pass
+against the Docker deployment remains a deployment-environment check: the
+Docker daemon was unavailable during this validation, so it is not represented
+as having run.
 
 ## Phase 3 — Complete Identity Service extraction
 

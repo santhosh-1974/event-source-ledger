@@ -90,7 +90,7 @@ This frontend provides a professional dashboard for managing customers, accounts
 3. **Configure environment variables**:
    Create a `.env` file in the frontend directory:
    ```env
-   VITE_API_BASE_URL=http://localhost:5000/api/v1
+   VITE_API_BASE_URL=/api/v1
    ```
 
    Or copy from the example:
@@ -103,7 +103,8 @@ This frontend provides a professional dashboard for managing customers, accounts
    npm run dev
    ```
 
-   The application will be available at `http://localhost:5173`
+   The application will be available at `http://localhost:5173`. Vite proxies
+   `/api` and `/health` to the API Gateway at `http://localhost:4000`.
 
 ## Development Commands
 
@@ -265,7 +266,7 @@ npm test
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VITE_API_BASE_URL` | Backend API base URL | `http://localhost:5000/api/v1` |
+| `VITE_API_BASE_URL` | API base URL; use the same-origin gateway proxy by default | `/api/v1` |
 
 ## Backend Requirements
 

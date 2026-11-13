@@ -41,7 +41,24 @@ if (!address || typeof address === "string") {
 }
 
 process.env.CUSTOMER_SERVICE_URL = `http://127.0.0.1:${address.port}`;
-process.env.IDENTITY_SERVICE_URL ??= "http://127.0.0.1:1";
+
+const { default: identityServiceApp } = await import(
+  "../../services/identity-service/src/app"
+);
+const { pool: identityServicePool } = await import(
+  "../../services/identity-service/src/database/database"
+);
+const identityServiceServer = createServer(identityServiceApp);
+await new Promise<void>((resolve, reject) => {
+  identityServiceServer.once("error", reject);
+  identityServiceServer.listen(0, "127.0.0.1", resolve);
+});
+
+const identityAddress = identityServiceServer.address();
+if (!identityAddress || typeof identityAddress === "string") {
+  throw new Error("Could not determine the Identity Service test port");
+}
+process.env.IDENTITY_SERVICE_URL = `http://127.0.0.1:${identityAddress.port}`;
 
 const { default: notificationServiceApp } = await import(
   "../../services/notification-service/src/app"
@@ -88,6 +105,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) => {
+    identityServiceServer.close((error) =>
+      error ? reject(error) : resolve()
+    );
+  });
+  await new Promise<void>((resolve, reject) => {
     notificationServer.close((error) =>
       error ? reject(error) : resolve()
     );
@@ -104,4 +126,5 @@ afterAll(async () => {
   });
   await notificationServicePool.end();
   await customerServicePool.end();
+  await identityServicePool.end();
 });

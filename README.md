@@ -482,12 +482,12 @@ docker compose up --build -d
 | `identity-service` | 5001 | `127.0.0.1:5001` (loopback only) |
 | `postgres` | 5432 | `127.0.0.1:5432` (loopback only, for `psql`) |
 
-The browser talks **only** to the frontend, and the frontend's JavaScript bundle
-calls the API gateway at `http://localhost:4000/api/v1`. Nothing else is reachable
-from another machine: the banking backend, identity service, and PostgreSQL are
-all published on the loopback interface only. Inside the Compose network the
-services reach each other by name (`http://banking-backend:5000`,
-`http://identity-service:5001`).
+The browser talks **only** to the frontend. The frontend serves the app and
+proxies same-origin `/api` requests to the API Gateway inside the Compose
+network. The API Gateway is also published on port 4000 for direct API use;
+the banking backend, identity service, and PostgreSQL are bound to loopback
+for local debugging only. Inside the Compose network services reach each other
+by name (`http://banking-backend:5000`, `http://identity-service:5001`).
 
 ## Start the stack
 
@@ -575,9 +575,9 @@ docker compose up -d     # data is still there
 docker compose up --build -d
 ```
 
-If you change `VITE_API_BASE_URL`, the frontend must be rebuilt: it is baked into
-the JavaScript bundle at build time. Compose passes it as a build argument
-automatically.
+If you change `VITE_API_BASE_URL`, the frontend must be rebuilt: it is baked
+into the JavaScript bundle at build time. The default `/api/v1` path is proxied
+by nginx to the Gateway. Compose passes it as a build argument automatically.
 
 ## Configuration notes
 

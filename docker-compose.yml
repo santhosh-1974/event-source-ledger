@@ -12,8 +12,8 @@
 #   api-gateway       single browser-facing entry point          :4000
 #   frontend          React (Vite) build served by nginx         :5173
 #
-# Service-to-service traffic uses Docker DNS names; the frontend uses the
-# host-published gateway URL because its HTTP calls are made by the *browser*.
+# Service-to-service traffic uses Docker DNS names; nginx proxies same-origin
+# browser API requests to the Gateway over the Compose network.
 #
 # NOTE: this file lives at the repository root because the root of this
 # repository IS the backend (package.json name = "backend"); there is no
@@ -312,9 +312,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Browser-side URL: the gateway as seen FROM THE HOST, not a service name.
-        # Baked into the bundle at build time.
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:4000/api/v1}
+        # Use nginx as a same-origin reverse proxy to the Gateway.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
     image: event-source-ledger/frontend:local
     <<: *restart-policy
     ports:

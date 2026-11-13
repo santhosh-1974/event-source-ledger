@@ -219,7 +219,7 @@ console.log("  Integration Test Complete");
 console.log("═══════════════════════════════════════════════════════════\n");
 
 console.log("✅ Frontend Configuration:");
-console.log("   VITE_API_BASE_URL=http://localhost:4000/api/v1");
+console.log("   VITE_API_BASE_URL=/api/v1 (Vite/nginx proxy to the Gateway)");
 console.log("");
 console.log("✅ API Gateway Routing:");
 console.log("   /api/v1/auth/* → Identity Service (5001)");

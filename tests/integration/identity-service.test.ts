@@ -1,6 +1,6 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import request from "supertest";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import bankingApp from "../helpers/app";
 import gatewayApp from "../../services/api-gateway/src/app";
@@ -8,24 +8,14 @@ import { query } from "../../src/database/database";
 import { resetDatabase } from "../helpers/database";
 
 let identityApp: typeof import("../../services/identity-service/src/app").default;
-let identityPool: typeof import("../../services/identity-service/src/database/database").pool;
 beforeAll(async () => {
   ({ default: identityApp } = await import(
     "../../services/identity-service/src/app"
-  ));
-  ({ pool: identityPool } = await import(
-    "../../services/identity-service/src/database/database"
   ));
 });
 
 beforeEach(async () => {
   await resetDatabase();
-});
-
-afterAll(async () => {
-  if (identityPool) {
-    await identityPool.end();
-  }
 });
 
 describe("Identity Service authentication", () => {

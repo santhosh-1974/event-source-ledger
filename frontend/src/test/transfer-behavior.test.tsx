@@ -33,20 +33,29 @@ const renderWithClient = (ui: React.ReactElement) => {
   return { invalidateSpy };
 };
 
+const waitForAccounts = () =>
+  waitFor(
+    () =>
+      expect(
+        screen.getByRole('combobox', { name: /from account number/i }),
+      ).toBeEnabled(),
+    { timeout: 5000 },
+  );
+
 describe('Transfers component behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (apiClient.getAccounts as any).mockResolvedValue({
       accounts: [
-        { accountNumber: '1000000001' },
-        { accountNumber: '1000000002' },
+        { id: 'account-1', accountNumber: '1000000001', accountType: 'SAVINGS' },
+        { id: 'account-2', accountNumber: '1000000002', accountType: 'SAVINGS' },
       ],
     });
   });
 
   it('shows confirmation step and cancels without API call', async () => {
     renderWithClient(<Transfers />);
-    await waitFor(() => expect(screen.getByRole('button', { name: /transfer/i })).toBeEnabled());
+    await waitForAccounts();
     // fill form
     fireEvent.change(screen.getByLabelText(/from account number/i), { target: { value: '1000000001' } });
     fireEvent.change(screen.getByLabelText(/to account number/i), { target: { value: '1000000002' } });
@@ -69,7 +78,7 @@ describe('Transfers component behavior', () => {
       .mockResolvedValueOnce(resolved);
 
     renderWithClient(<Transfers />);
-    await waitFor(() => expect(screen.getByRole('button', { name: /transfer/i })).toBeEnabled());
+    await waitForAccounts();
     // fill form
     fireEvent.change(screen.getByLabelText(/from account number/i), { target: { value: '1000000001' } });
     fireEvent.change(screen.getByLabelText(/to account number/i), { target: { value: '1000000002' } });
@@ -91,7 +100,7 @@ describe('Transfers component behavior', () => {
 
   it('rejects invalid decimal amount before confirmation', async () => {
     renderWithClient(<Transfers />);
-    await waitFor(() => expect(screen.getByRole('button', { name: /transfer/i })).toBeEnabled());
+    await waitForAccounts();
     fireEvent.change(screen.getByLabelText(/from account number/i), { target: { value: '1000000001' } });
     fireEvent.change(screen.getByLabelText(/to account number/i), { target: { value: '1000000002' } });
     fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '-5' } });
@@ -105,7 +114,7 @@ describe('Transfers component behavior', () => {
     const err = new ApiError('Ownership error', 403);
     (apiClient.transfer as any).mockRejectedValue(err);
     renderWithClient(<Transfers />);
-    await waitFor(() => expect(screen.getByRole('button', { name: /transfer/i })).toBeEnabled());
+    await waitForAccounts();
     fireEvent.change(screen.getByLabelText(/from account number/i), { target: { value: '1000000001' } });
     fireEvent.change(screen.getByLabelText(/to account number/i), { target: { value: '1000000002' } });
     fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '10' } });
@@ -120,7 +129,7 @@ describe('Transfers component behavior', () => {
     const result = { transactionId: 'tx123', reference: 'ref123' };
     (apiClient.transfer as any).mockResolvedValue(result);
     const { invalidateSpy } = renderWithClient(<Transfers />);
-    await waitFor(() => expect(screen.getByRole('button', { name: /transfer/i })).toBeEnabled());
+    await waitForAccounts();
     fireEvent.change(screen.getByLabelText(/from account number/i), { target: { value: '1000000001' } });
     fireEvent.change(screen.getByLabelText(/to account number/i), { target: { value: '1000000002' } });
     fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '10' } });
