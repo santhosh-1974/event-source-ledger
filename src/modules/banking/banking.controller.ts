@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { deposit, getAccountBalance, getAccountTransactions, transfer, withdraw } from "./banking.service";
-import { balanceQuerySchema, depositInputSchema, transactionHistoryQuerySchema, transferInputSchema, withdrawInputSchema } from "./banking.schema";
+import { deposit, getAccountBalance, getAccountTransactions, transfer, transferToBeneficiary, withdraw } from "./banking.service";
+import { balanceQuerySchema, beneficiaryTransferInputSchema, depositInputSchema, transactionHistoryQuerySchema, transferInputSchema, withdrawInputSchema } from "./banking.schema";
 import { IdempotencyRequest } from "../../middleware/idempotency.middleware";
 
 export async function depositHandler(req: Request, res: Response): Promise<void> {
@@ -26,11 +26,22 @@ export async function withdrawHandler(req: Request, res: Response): Promise<void
 export async function transferHandler(req: Request, res: Response): Promise<void> {
     const data = transferInputSchema.parse(req.body);
     const idempotencyKey = (req as IdempotencyRequest).idempotencyKey;
-    const result = await transfer(data, idempotencyKey);
+    const result = await transfer(data, idempotencyKey, req.auth!.customerId);
     res.status(201).json({
         success: true,
         data: result,
     });
+}
+
+export async function beneficiaryTransferHandler(req: Request, res: Response): Promise<void> {
+    const data = beneficiaryTransferInputSchema.parse(req.body);
+    const idempotencyKey = (req as IdempotencyRequest).idempotencyKey;
+    const result = await transferToBeneficiary(
+        data,
+        req.auth!.customerId,
+        idempotencyKey
+    );
+    res.status(201).json({ success: true, data: result });
 }
 
 export async function getAccountBalanceHandler(req: Request, res: Response): Promise<void> {

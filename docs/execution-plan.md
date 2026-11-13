@@ -30,7 +30,7 @@ the proposed target are distinguished in [architecture.md](./architecture.md).
 | 5 | Establish Banking Core boundary | **Complete** — Gateway forwards only the versioned Banking resources; OpenAPI, authorization/error contracts, and end-to-end Gateway tests cover account and financial flows. Existing atomic ledger, idempotency, ownership, and concurrency semantics remain unchanged. |
 | 6 | Transactional Outbox and SQS | **Complete (locally validated; AWS deployment remains in Phase 11)** |
 | 7 | Notification Service and SES | **Complete locally; backend tests, service builds, Compose configuration, and Terraform validation pass. Docker image build not run because the Docker daemon is unavailable; AWS deployment remains in Phase 11.** |
-| 8 | Advanced banking operations and reporting | **Not started** |
+| 8 | Advanced banking operations and reporting | **Complete locally** — beneficiary validation, scheduled transfers, retry rules, and statements are implemented and verified against the source ledger. |
 | 9 | Professional banking frontend | **In progress / partial** — current banking UI exists; planned navigation and capabilities remain incomplete. |
 | 10 | Containerization and CI/CD | **Partial** — local seven-service Docker Compose, CI validation, and all service build checks exist; image publishing and production hardening remain. |
 | 11 | AWS deployment | **Not started** |
@@ -270,18 +270,18 @@ process crash in that gap can still result in a duplicate email after redelivery
 
 ## Phase 8 — Advanced banking operations and reporting
 
-**Status: Not started**
+**Status: Complete locally**
 
 ### Work
 
-- Prioritize advanced banking operations such as beneficiary management,
-  scheduled/recurring transfers, and robust failure/status handling.
-- Define statement, filtering, and reporting requirements, including data
-  retention and freshness expectations.
-- Build read models from ledger/outbox events or a documented read-only
-  projection process when query needs justify them.
-- Keep reporting projections non-authoritative; verify them against the source
-  ledger.
+- Add beneficiary management, owned-account restrictions, and allowance for
+  saved third-party transfers only through active recipients.
+- Add scheduled/recurring transfers with UTC weekly and monthly semantics,
+  skipped missed runs, and explicit retry of failed occurrences.
+- Implement ledger-derived statements as read-only JSON/CSV reporting against
+  the authoritative ledger, with range limits and reconciliation checks.
+- Keep the reporting path non-authoritative and verify it against the source
+  ledger snapshot rather than introducing a mutable projection.
 
 ### Exit criteria
 
@@ -289,8 +289,22 @@ process crash in that gap can still result in a duplicate email after redelivery
   semantics with regression tests.
 - Reports and statements are reproducible and their freshness/consistency is
   explicit.
-- Reconciliation detects missing, duplicated, or inconsistent projection data;
-  reporting cannot mutate financial source-of-truth tables.
+- Reconciliation detects mismatches against the source ledger and reporting
+  cannot mutate source-of-truth financial tables.
+
+### Delivered and validated
+
+The Banking Core now supports customer-owned beneficiaries, masked recipient
+identifiers, third-party transfer execution through active saved recipients,
+weekly/monthly schedule creation, stateful occurrence tracking, skip/failure
+handling, and explicit retry. The statement API queries the source ledger in a
+repeatable-read snapshot and returns reconciled JSON or CSV data with masked
+account numbers and CSV formula-safe escaping. Integration tests cover
+beneficiary validation, idempotent transfers, schedule execution, missed-run
+logic, retry flow, monthly date clamping, cancellation, and statement
+reconciliation. Backend tests, lint, typecheck, build, API Gateway build,
+Customer Service build, Compose validation, and targeted Phase 8 integration
+coverage all passed in this environment.
 
 ## Phase 9 — Professional banking frontend
 

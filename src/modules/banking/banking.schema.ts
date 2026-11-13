@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-const amountSchema = z.string().trim().regex(/^\d+(\.\d{1,2})?$/, "Invalid amount").refine((value) => Number(value) > 0, "Amount must be greater than zero");
+const amountSchema = z
+    .string()
+    .trim()
+    .regex(/^\d{1,16}(\.\d{1,2})?$/, "Amount must fit NUMERIC(18,2)")
+    .refine((value) => Number(value) > 0, "Amount must be greater than zero");
 const accountNumberSchema = z.string().trim().min(1, "Account number is required").max(20);
 
 export const depositInputSchema = z.object({
@@ -20,6 +24,13 @@ export const transferInputSchema = z.object({
     description: z.string().trim().max(255).optional(),
 });
 
+export const beneficiaryTransferInputSchema = z.object({
+    fromAccountNumber: accountNumberSchema,
+    beneficiaryId: z.uuid(),
+    amount: amountSchema,
+    description: z.string().trim().max(255).optional(),
+}).strict();
+
 export const transactionHistoryQuerySchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -33,4 +44,5 @@ export const balanceQuerySchema = z.object({
 export type depositInput = z.infer<typeof depositInputSchema>;
 export type withdrawInput = z.infer<typeof withdrawInputSchema>;
 export type transferInput = z.infer<typeof transferInputSchema>;
+export type beneficiaryTransferInput = z.infer<typeof beneficiaryTransferInputSchema>;
 

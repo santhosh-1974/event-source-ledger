@@ -2,6 +2,9 @@ import { schemas } from "./schemas";
 import { accountPaths } from "./accounts";
 import { bankingPaths } from "./banking";
 import { transactionPaths } from "./transaction";
+import { beneficiaryPaths } from "./beneficiaries";
+import { scheduledTransferPaths } from "./scheduledTransfers";
+import { reportPaths } from "./reports";
 
 const errorContent = {
   "application/json": {
@@ -32,6 +35,9 @@ export const openApiSpec = {
     { name: "Accounts" },
     { name: "Banking" },
     { name: "Transactions" },
+    { name: "Beneficiaries" },
+    { name: "Scheduled Transfers" },
+    { name: "Reports" },
   ],
   components: {
     schemas,
@@ -41,6 +47,11 @@ export const openApiSpec = {
         scheme: "bearer",
         bearerFormat: "JWT",
       },
+      IdempotencyKey: {
+        type: "apiKey",
+        in: "header",
+        name: "Idempotency-Key",
+      },
     },
     parameters: {
       IdempotencyKey: {
@@ -48,7 +59,7 @@ export const openApiSpec = {
         in: "header",
         required: true,
         description:
-          "UUID key used to safely retry a deposit, withdrawal, or transfer.",
+          "UUID key used to safely retry a financial operation, schedule creation, or scheduled-occurrence retry.",
         schema: { type: "string", format: "uuid" },
       },
     },
@@ -79,11 +90,22 @@ export const openApiSpec = {
         description: "Banking Core is unavailable through the Gateway.",
         content: errorContent,
       },
+      TransferCreated: {
+        description: "Financial operation committed",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/OperationEnvelope" },
+          },
+        },
+      },
     },
   },
   paths: {
     ...accountPaths,
     ...bankingPaths,
     ...transactionPaths,
+    ...beneficiaryPaths,
+    ...scheduledTransferPaths,
+    ...reportPaths,
   },
 };

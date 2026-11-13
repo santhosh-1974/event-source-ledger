@@ -63,6 +63,9 @@ app.use("/api/v1/notifications", notificationServiceProxy);
 app.use("/api/v1/accounts", bankingServiceProxy);
 app.use("/api/v1/banking", bankingServiceProxy);
 app.use("/api/v1/transactions", bankingServiceProxy);
+app.use("/api/v1/beneficiaries", bankingServiceProxy);
+app.use("/api/v1/scheduled-transfers", bankingServiceProxy);
+app.use("/api/v1/reports", bankingServiceProxy);
 
 // ── 404 handler ────────────────────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {

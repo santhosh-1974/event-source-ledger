@@ -33,6 +33,13 @@ const envSchema=z.object({
     OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(8),
     OUTBOX_RETRY_BASE_MS: z.coerce.number().int().min(1).default(1_000),
     OUTBOX_RETRY_MAX_MS: z.coerce.number().int().min(1).default(60_000),
+    SCHEDULED_TRANSFER_WORKER_ENABLED: z
+        .enum(["true", "false"])
+        .default("true")
+        .transform((value) => value === "true"),
+    SCHEDULED_TRANSFER_POLL_INTERVAL_MS: z.coerce.number().int().min(1_000).default(30_000),
+    SCHEDULED_TRANSFER_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(20),
+    SCHEDULED_TRANSFER_MISFIRE_GRACE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
 }).superRefine((config, context) => {
     if (config.OUTBOX_PUBLISHER_ENABLED && !config.OUTBOX_SQS_QUEUE_URL) {
         context.addIssue({

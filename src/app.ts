@@ -18,6 +18,13 @@ app.disable("x-powered-by");
 app.use(
   pinoHttp({
     logger,
+    serializers: {
+      req: (req) => ({
+        id: req.id,
+        method: req.method,
+        url: req.url,
+      }),
+    },
   })
 );
 app.use(helmet());

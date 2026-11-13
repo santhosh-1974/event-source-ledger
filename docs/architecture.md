@@ -18,8 +18,10 @@ The project is a React banking application backed by a TypeScript/Express
 banking API and PostgreSQL. There are also separate Identity Service and API
 Gateway Node applications, plus separate Customer and Notification Services.
 The banking domain remains a modular monolith: accounts, banking operations,
-transactions, ledger, outbox, and idempotency share one process and database
-transaction boundary.
+transactions, ledger, beneficiary management, scheduled transfers, outbox,
+and idempotency share one process and database transaction boundary. Read-only
+account statements query the source ledger; there is no separate Reporting
+Service or projection.
 
 ```mermaid
 flowchart LR
@@ -28,6 +30,7 @@ flowchart LR
     Gateway -->|/api/v1/auth/*| Identity[Identity Service]
     Gateway -->|/api/v1/customers/*| Customer[Customer Service]
     Gateway -->|/api/v1/notifications/*| Notification[Notification Service]
+    Gateway -->|/api/v1/beneficiaries, /scheduled-transfers, /reports| Banking
     Gateway -->|/api/v1/accounts, /banking, /transactions| Banking[Banking Core]
     Identity -->|PostgreSQL| DB[(PostgreSQL)]
     Banking -->|PostgreSQL| DB
@@ -45,12 +48,12 @@ flowchart LR
 | Component | Location | Responsibility |
 |---|---|---|
 | React frontend | `frontend/` | Authentication UI, dashboard, accounts, deposits, withdrawals, transfers, and transaction views. |
-| Banking backend | `src/` | Express API and modular banking domain: accounts, ledger entries, transactions, and idempotency. It checks customer existence through Customer Service and retains relational foreign keys. |
+| Banking backend | `src/` | Express API and modular banking domain: accounts, ledger entries, transfers, beneficiaries, scheduled transfers, statements, and idempotency. It checks customer existence through Customer Service and retains relational foreign keys. |
 | Identity Service | `services/identity-service/` | Sole registration/login authority; owns credential reads/writes in the `identity` schema and provisions profiles through Customer Service's protected API. |
 | Customer Service | `services/customer-service/` | Authoritative profile create/read/update API; owns application reads and writes to `customer.customers`. |
 | Notification Service | `services/notification-service/` | Owns opt-in preferences, consent history, event processing, delivery attempts, and consent-aware email notifications. |
 | API Gateway | `services/api-gateway/` | Routes auth to Identity, profiles to Customer, notification preferences to Notification, and banking requests to Banking. Denies internal service routes. |
-| PostgreSQL migrations | `migrations/` | Schema migrations for customer profiles, bank accounts, ledger accounts, transactions, ledger entries, idempotency keys, Identity credentials, transactional outbox, and notifications. |
+| PostgreSQL migrations | `migrations/` | Schema migrations for customer profiles, bank accounts, ledger accounts, transactions, ledger entries, idempotency keys, Identity credentials, transactional outbox, notifications, beneficiaries, and scheduled-transfer occurrences. |
 | Docker | `Dockerfile`, `docker-compose.yml`, `docker/`, and service directories | Local multi-container deployment with PostgreSQL 17, five Node services, and nginx frontend. |
 
 ### Current request and data flow
@@ -61,7 +64,8 @@ flowchart LR
    `/api/v1/customers/*` to Customer Service,
    `/api/v1/notifications/*` to Notification Service, and only the documented
    `/api/v1/accounts`, `/api/v1/banking`, and `/api/v1/transactions` resources
-   to Banking. Other `/api/v1/*` paths are not forwarded.
+   plus `/api/v1/beneficiaries`, `/api/v1/scheduled-transfers`, and
+   `/api/v1/reports` to Banking. Other `/api/v1/*` paths are not forwarded.
 3. During registration, Identity calls Customer Service's protected create
    endpoint using `CUSTOMER_PROVISIONING_SECRET`, then stores the returned
    customer ID, login email, and password hash in `identity.credentials`.
@@ -80,6 +84,11 @@ flowchart LR
    readiness check waits for the migrated customer schema; Identity and
    Notification wait for their dependencies' health checks, and Gateway waits
    for all routed services.
+7. Banking owns saved beneficiary references and recurring schedule execution.
+   The scheduler uses database row locks and records each execution result in
+   the same transaction as its ledger and outbox writes. Statements are
+   read-only, repeatable-read queries against the source ledger; see
+   [phase-8-operations.md](./phase-8-operations.md).
 
 ### Database and ledger facts
 
@@ -92,6 +101,8 @@ The checked-in migrations create:
 | `notification.preferences` and `notification.preference_history` | Notification-owned email preferences and consent/revocation history. |
 | `notification.events`, `notification.deliveries`, and `notification.delivery_attempts` | Event deduplication, per-recipient delivery state, and attempt history. |
 | `banking_outbox` | Banking-owned transactional event outbox published asynchronously to SQS. |
+| `banking_beneficiaries` | Customer-owned saved recipient accounts; only the account's masked number is returned to the caller. |
+| `scheduled_transfers` and `scheduled_transfer_occurrences` | UTC schedules, lifecycle state, unique execution records, retry results, and missed-occurrence history. |
 | `legacy_users` | Preserved pre-extraction credential rows; no application code reads or writes this compatibility table. |
 | `bank_accounts` | Customer-owned bank accounts. |
 | `ledger_accounts` | System and customer accounting accounts. |
@@ -160,7 +171,7 @@ flowchart LR
 | Customer | Customer profile and contact data. | A separate Customer Service owns the profile API and `customer.customers` schema; it still shares PostgreSQL and database credentials with other services. |
 | Banking Core | Accounts, transactions, ledger entries, idempotency, and atomic financial operations. | Implemented together in the Banking backend process, behind the Gateway's allow-listed `/api/v1` contract. Keep these modules and writes in the same transaction boundary. |
 | Notification | Notification preferences, delivery history, and retry state. | Implemented as a separate consent-aware consumer with idempotent delivery tracking; live AWS SQS/SES deployment remains for Phase 11. |
-| Reporting | Read models, statements, and reporting metadata. | Not implemented as a separate service. |
+| Reporting | Read models, statements, and reporting metadata. | Read-only statement APIs query the authoritative ledger in a repeatable-read snapshot; no separate Reporting Service or projection is used. |
 | API Gateway | Public API routing and cross-cutting edge controls. | Implemented as a separate service; routes auth, customer profile, notification preferences, and banking API paths. |
 
 ### Financial consistency boundary

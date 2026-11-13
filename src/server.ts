@@ -4,12 +4,14 @@ import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { startIdempotencyCleanupJob, stopIdempotencyCleanupJob } from "./jobs/idempotencyCleanup.job";
 import { startOutboxPublisherJob, stopOutboxPublisherJob } from "./jobs/outboxPublisher.job";
+import { startScheduledTransferJob, stopScheduledTransferJob } from "./jobs/scheduledTransfer.job";
 
 async function bootstrap() {
     try {
         await connectDB();
         startIdempotencyCleanupJob();
         startOutboxPublisherJob();
+        startScheduledTransferJob();
 
         const server = app.listen(env.PORT, () => logger.info(`Server running on http://localhost:${env.PORT}`))
 
@@ -20,6 +22,7 @@ async function bootstrap() {
             logger.info(`${signal} received.Shutting down`)
             stopIdempotencyCleanupJob();
             try {
+                await stopScheduledTransferJob();
                 await stopOutboxPublisherJob();
                 await new Promise<void>((resolve, reject) => {
                     server.close((error) => {

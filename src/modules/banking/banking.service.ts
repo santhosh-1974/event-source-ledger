@@ -1,13 +1,13 @@
 import { randomUUID } from "crypto";
 import { PoolClient } from "pg";
 
-import { getClient } from "../../database/database";
 import { AccountClosedError, AccountFrozenError, ConflictError, InsufficientFundsError, InternalServerError, NotFoundError } from "../../errors/errors";
 
 import * as bankAccountRepository from "../bank-accounts/account.repository";
 import * as ledgerRepository from "../ledger/ledger.repository";
 import * as transactionRepository from "../transactions/transaction.repository";
 import * as idempotencyService from "../idempotency/idempotency.service";
+import { findOwnedBeneficiary } from "../beneficiaries/beneficiary.repository";
 import { appendOutboxEvent, newEventId } from "../outbox/outbox.repository";
 
 import { depositInput, transferInput, withdrawInput } from "./banking.schema";
@@ -20,6 +20,7 @@ const BANKING_ENDPOINTS = {
   deposit: "/api/v1/banking/deposit",
   withdraw: "/api/v1/banking/withdraw",
   transfer: "/api/v1/banking/transfer",
+  beneficiaryTransfer: "/api/v1/banking/beneficiary-transfers",
 } as const;
 
 function assertAccountIsOperable(status: string, subject = "Account"): void {
@@ -45,55 +46,15 @@ async function assertTransactionBalanced(transactionId: string, client: PoolClie
   if (toCents(debits) !== toCents(credits)) throw new InternalServerError("Ledger entries are not balanced.");
 }
 
-async function withIdempotency<T>(
-  idempotencyKey: string,
-  requestHash: string,
-  endpoint: string,
-  client: PoolClient,
-  execute: () => Promise<T>
-): Promise<T> {
-  let ownsIdempotencyRecord = false;
-
-  try {
-    await client.query("BEGIN");
-
-    const result = await idempotencyService.checkOrCreateIdempotencyRecord(
-      idempotencyKey,
-      requestHash,
-      endpoint,
-      client
-    );
-
-    if (result.kind === "existing") {
-      const stored = idempotencyService.getStoredResponse(result.record) as T;
-      await client.query("ROLLBACK");
-      return stored;
-    }
-
-    ownsIdempotencyRecord = true;
-    const response = await execute();
-    await idempotencyService.completeRequest(idempotencyKey, response, client);
-    await client.query("COMMIT");
-    return response;
-  } catch (error) {
-    await client.query("ROLLBACK");
-
-    if (ownsIdempotencyRecord) {
-      await idempotencyService.recordFailedRequest(idempotencyKey, requestHash, endpoint);
-    }
-
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
 export async function deposit(input: depositInput, idempotencyKey: string): Promise<depositResult> {
-  const client = await getClient();
   const requestHash = idempotencyService.buildRequestHash(input);
   const endpoint = BANKING_ENDPOINTS.deposit;
 
-  return withIdempotency(idempotencyKey, requestHash, endpoint, client, async () => {
+  return idempotencyService.executeWithIdempotency(
+    idempotencyKey,
+    requestHash,
+    endpoint,
+    async (client) => {
     const bankAccount = await bankAccountRepository.findBankAccountByNumberForUpdate(input.accountNumber, client);
     if (!bankAccount) {
       throw new NotFoundError("Bank account not found.");
@@ -141,16 +102,20 @@ export async function deposit(input: depositInput, idempotencyKey: string): Prom
       transactionId: transaction.id,
       reference: transaction.reference,
     };
-  });
+    }
+  );
 }
 
 export async function withdraw(input: withdrawInput, idempotencyKey: string): Promise<withdrawResult> {
-  const client = await getClient();
   const requestHash = idempotencyService.buildRequestHash(input);
   const endpoint = BANKING_ENDPOINTS.withdraw;
 
   try {
-    return await withIdempotency(idempotencyKey, requestHash, endpoint, client, async () => {
+    return await idempotencyService.executeWithIdempotency(
+      idempotencyKey,
+      requestHash,
+      endpoint,
+      async (client) => {
       const lockedAccount = await bankAccountRepository.findBankAccountByNumberForUpdate(input.accountNumber, client);
       if (!lockedAccount) {
         throw new NotFoundError("Bank account not found.");
@@ -203,7 +168,8 @@ export async function withdraw(input: withdrawInput, idempotencyKey: string): Pr
         transactionId: transaction.id,
         reference: transaction.reference,
       };
-    });
+      }
+    );
   } catch (error) {
     if (
       error instanceof NotFoundError ||
@@ -219,101 +185,253 @@ export async function withdraw(input: withdrawInput, idempotencyKey: string): Pr
   }
 }
 
-export async function transfer(input: transferInput, idempotencyKey: string): Promise<transferResult> {
-  const client = await getClient();
-  const requestHash = idempotencyService.buildRequestHash(input);
-  const endpoint = BANKING_ENDPOINTS.transfer;
+async function executeTransfer(
+  senderAccountId: string,
+  receiverAccountId: string,
+  amount: string,
+  descriptionInput: string | undefined,
+  customerId: string,
+  requireOwnedReceiver: boolean,
+  client: PoolClient
+): Promise<transferResult> {
+  if (senderAccountId === receiverAccountId) {
+    throw new ConflictError("Sender and receiver accounts must be different.");
+  }
 
-  try {
-    return await withIdempotency(idempotencyKey, requestHash, endpoint, client, async () => {
-      if (input.fromAccountNumber === input.toAccountNumber) {
-        throw new ConflictError("Sender and receiver accounts must be different.");
-      }
+  const [firstId, secondId] = [senderAccountId, receiverAccountId].sort();
+  const firstAccount = await bankAccountRepository.findBankAccountByIdForUpdate(
+    firstId,
+    client
+  );
+  const secondAccount = await bankAccountRepository.findBankAccountByIdForUpdate(
+    secondId,
+    client
+  );
+  if (!firstAccount || !secondAccount) {
+    throw new NotFoundError("Sender or receiver bank account not found.");
+  }
 
-      const senderAccount = await bankAccountRepository.findBankAccountByNumber(input.fromAccountNumber, client);
-      const receiverAccount = await bankAccountRepository.findBankAccountByNumber(input.toAccountNumber, client);
+  const accountsById = new Map([
+    [firstAccount.id, firstAccount],
+    [secondAccount.id, secondAccount],
+  ]);
+  const senderAccount = accountsById.get(senderAccountId)!;
+  const receiverAccount = accountsById.get(receiverAccountId)!;
+  if (
+    senderAccount.customerId !== customerId ||
+    (requireOwnedReceiver && receiverAccount.customerId !== customerId)
+  ) {
+    throw new NotFoundError("Sender or receiver bank account not found.");
+  }
+  assertAccountIsOperable(senderAccount.status, "Sender account");
+  assertAccountIsOperable(receiverAccount.status, "Receiver account");
 
-      if (!senderAccount || !receiverAccount) {
-        throw new NotFoundError("Sender or receiver bank account not found.");
-      }
+  const senderLedger = await ledgerRepository.findCustomerLedgerAccount(
+    senderAccountId,
+    client
+  );
+  const receiverLedger = await ledgerRepository.findCustomerLedgerAccount(
+    receiverAccountId,
+    client
+  );
+  if (!senderLedger || !receiverLedger) {
+    throw new NotFoundError("Customer ledger account not found.");
+  }
 
-      const senderAccountId = senderAccount.id;
-      const receiverAccountId = receiverAccount.id;
+  const senderBalance = await ledgerRepository.calculateLedgerBalance(
+    senderLedger.id,
+    client
+  );
+  if (toCents(senderBalance) < toCents(amount)) {
+    throw new InsufficientFundsError("Insufficient funds for transfer.");
+  }
 
-      const orderedIds = [senderAccountId, receiverAccountId].sort();
-      const firstAccount = await bankAccountRepository.findBankAccountByIdForUpdate(orderedIds[0], client);
-      const secondAccount = await bankAccountRepository.findBankAccountByIdForUpdate(orderedIds[1], client);
+  const transaction = await transactionRepository.create(
+    randomUUID(),
+    descriptionInput?.trim() || TRANSFER_DESCRIPTION_PREFIX,
+    client
+  );
+  const cashLedger = await ledgerRepository.findSystemLedgerAccount(
+    SYSTEM_CASH_LEDGER_NAME,
+    client
+  );
+  if (!cashLedger) {
+    throw new NotFoundError("Cash ledger account not found.");
+  }
 
-      if (!firstAccount || !secondAccount) {
-        throw new NotFoundError("Sender or receiver bank account not found.");
-      }
+  await ledgerRepository.createLedgerEntry(
+    transaction.id,
+    senderLedger.id,
+    "DEBIT",
+    amount,
+    client
+  );
+  await ledgerRepository.createLedgerEntry(
+    transaction.id,
+    cashLedger.id,
+    "CREDIT",
+    amount,
+    client
+  );
+  await ledgerRepository.createLedgerEntry(
+    transaction.id,
+    cashLedger.id,
+    "DEBIT",
+    amount,
+    client
+  );
+  await ledgerRepository.createLedgerEntry(
+    transaction.id,
+    receiverLedger.id,
+    "CREDIT",
+    amount,
+    client
+  );
+  await assertTransactionBalanced(transaction.id, client);
 
-      const lockedById = new Map([[firstAccount.id, firstAccount], [secondAccount.id, secondAccount]]);
-      assertAccountIsOperable(lockedById.get(senderAccountId)!.status, "Sender account");
-      assertAccountIsOperable(lockedById.get(receiverAccountId)!.status, "Receiver account");
-
-      const senderLedger = await ledgerRepository.findCustomerLedgerAccount(senderAccountId, client);
-      const receiverLedger = await ledgerRepository.findCustomerLedgerAccount(receiverAccountId, client);
-
-      if (!senderLedger || !receiverLedger) {
-        throw new NotFoundError("Customer ledger account not found.");
-      }
-
-      const senderBalance = await ledgerRepository.calculateLedgerBalance(senderLedger.id, client);
-      if (toCents(senderBalance) < toCents(input.amount)) {
-        throw new InsufficientFundsError("Insufficient funds for transfer.");
-      }
-
-      const reference = randomUUID();
-      const description = input.description?.trim() || TRANSFER_DESCRIPTION_PREFIX;
-      const transaction = await transactionRepository.create(reference, description, client);
-
-      const cashLedger = await ledgerRepository.findSystemLedgerAccount(SYSTEM_CASH_LEDGER_NAME, client);
-      if (!cashLedger) throw new NotFoundError("Cash ledger account not found.");
-
-      await ledgerRepository.createLedgerEntry(transaction.id, senderLedger.id, "DEBIT", input.amount, client);
-      await ledgerRepository.createLedgerEntry(transaction.id, cashLedger.id, "CREDIT", input.amount, client);
-      await ledgerRepository.createLedgerEntry(transaction.id, cashLedger.id, "DEBIT", input.amount, client);
-      await ledgerRepository.createLedgerEntry(transaction.id, receiverLedger.id, "CREDIT", input.amount, client);
-      await assertTransactionBalanced(transaction.id, client);
-
-      await appendOutboxEvent(
-        {
-          eventId: newEventId(),
-          eventType: "banking.transfer.completed",
-          schemaVersion: 1,
-          occurredAt: new Date().toISOString(),
-          aggregateType: "transaction",
-          aggregateId: transaction.id,
-          payload: {
-            transactionId: transaction.id,
-            reference: transaction.reference,
-            senderCustomerId: senderAccount.customerId,
-            receiverCustomerId: receiverAccount.customerId,
-            fromAccountId: senderAccount.id,
-            toAccountId: receiverAccount.id,
-            amount: formatCents(input.amount),
-          },
-        },
-        client
-      );
-
-      return {
+  await appendOutboxEvent(
+    {
+      eventId: newEventId(),
+      eventType: "banking.transfer.completed",
+      schemaVersion: 1,
+      occurredAt: new Date().toISOString(),
+      aggregateType: "transaction",
+      aggregateId: transaction.id,
+      payload: {
         transactionId: transaction.id,
         reference: transaction.reference,
-      };
-    });
-  } catch (error) {
-    if (
-      error instanceof NotFoundError ||
-      error instanceof ConflictError ||
-      error instanceof InsufficientFundsError ||
-      error instanceof AccountFrozenError ||
-      error instanceof AccountClosedError
-    ) {
-      throw error;
-    }
+        senderCustomerId: senderAccount.customerId,
+        receiverCustomerId: receiverAccount.customerId,
+        fromAccountId: senderAccount.id,
+        toAccountId: receiverAccount.id,
+        amount: formatCents(amount),
+      },
+    },
+    client
+  );
 
+  return {
+    transactionId: transaction.id,
+    reference: transaction.reference,
+  };
+}
+
+export async function executeBeneficiaryTransfer(
+  input: {
+    fromAccountNumber: string;
+    beneficiaryId: string;
+    amount: string;
+    description?: string;
+  },
+  customerId: string,
+  client: PoolClient
+): Promise<transferResult> {
+  const source = await bankAccountRepository.findBankAccountByNumber(
+    input.fromAccountNumber,
+    client
+  );
+  if (!source || source.customerId !== customerId) {
+    throw new NotFoundError("Source account not found.");
+  }
+  const beneficiary = await findOwnedBeneficiary(
+    customerId,
+    input.beneficiaryId,
+    client,
+    true
+  );
+  if (!beneficiary) {
+    throw new NotFoundError("Beneficiary not found.");
+  }
+  if (beneficiary.status !== "ACTIVE") {
+    throw new ConflictError("Beneficiary is disabled.");
+  }
+
+  return executeTransfer(
+    source.id,
+    beneficiary.recipientAccountId,
+    input.amount,
+    input.description,
+    customerId,
+    false,
+    client
+  );
+}
+
+function isExpectedTransferError(error: unknown): boolean {
+  return (
+    error instanceof NotFoundError ||
+    error instanceof ConflictError ||
+    error instanceof InsufficientFundsError ||
+    error instanceof AccountFrozenError ||
+    error instanceof AccountClosedError
+  );
+}
+
+export async function transfer(
+  input: transferInput,
+  idempotencyKey: string,
+  customerId: string
+): Promise<transferResult> {
+  const requestHash = idempotencyService.buildRequestHash(input);
+
+  try {
+    return await idempotencyService.executeWithIdempotency(
+      idempotencyKey,
+      requestHash,
+      BANKING_ENDPOINTS.transfer,
+      async (client) => {
+        const sender = await bankAccountRepository.findBankAccountByNumber(
+          input.fromAccountNumber,
+          client
+        );
+        const receiver = await bankAccountRepository.findBankAccountByNumber(
+          input.toAccountNumber,
+          client
+        );
+        if (!sender || !receiver) {
+          throw new NotFoundError("Sender or receiver bank account not found.");
+        }
+        return executeTransfer(
+          sender.id,
+          receiver.id,
+          input.amount,
+          input.description,
+          customerId,
+          true,
+          client
+        );
+      }
+    );
+  } catch (error) {
+    if (isExpectedTransferError(error)) throw error;
+    throw new InternalServerError("Failed to process transfer.");
+  }
+}
+
+export async function transferToBeneficiary(
+  input: {
+    fromAccountNumber: string;
+    beneficiaryId: string;
+    amount: string;
+    description?: string;
+  },
+  customerId: string,
+  idempotencyKey: string
+): Promise<transferResult> {
+  const requestHash = idempotencyService.buildRequestHash({
+    customerId,
+    ...input,
+  });
+
+  try {
+    return await idempotencyService.executeWithIdempotency(
+      idempotencyKey,
+      requestHash,
+      BANKING_ENDPOINTS.beneficiaryTransfer,
+      (client) => executeBeneficiaryTransfer(input, customerId, client)
+    );
+  } catch (error) {
+    if (isExpectedTransferError(error)) throw error;
     throw new InternalServerError("Failed to process transfer.");
   }
 }

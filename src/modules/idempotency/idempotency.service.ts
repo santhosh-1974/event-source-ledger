@@ -1,6 +1,7 @@
 import { PoolClient } from "pg";
 import { createHash } from "crypto";
 import { env } from "../../config/env";
+import { getClient } from "../../database/database";
 import { ConflictError, InternalServerError } from "../../errors/errors";
 import * as idempotencyRepository from "./idempotency.repository";
 import { IdempotencyKeyRecord } from "./idempotency.types";
@@ -140,6 +141,45 @@ export async function recordFailedRequest(
         endpoint,
         expiresAt: calculateExpiry(),
     });
+}
+
+export async function executeWithIdempotency<T>(
+      idempotencyKey: string,
+      requestHash: string,
+      endpoint: string,
+      execute: (client: PoolClient) => Promise<T>
+): Promise<T> {
+      const client = await getClient();
+      let ownsIdempotencyRecord = false;
+
+      try {
+          await client.query("BEGIN");
+          const result = await checkOrCreateIdempotencyRecord(
+              idempotencyKey,
+              requestHash,
+              endpoint,
+              client
+          );
+          if (result.kind === "existing") {
+              const stored = getStoredResponse(result.record) as T;
+              await client.query("ROLLBACK");
+              return stored;
+          }
+
+          ownsIdempotencyRecord = true;
+          const response = await execute(client);
+          await completeRequest(idempotencyKey, response, client);
+          await client.query("COMMIT");
+          return response;
+      } catch (error) {
+          await client.query("ROLLBACK");
+          if (ownsIdempotencyRecord) {
+              await recordFailedRequest(idempotencyKey, requestHash, endpoint);
+          }
+          throw error;
+      } finally {
+          client.release();
+      }
 }
 
 export async function cleanupExpiredKeys(): Promise<number> {

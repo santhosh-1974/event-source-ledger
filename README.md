@@ -660,15 +660,58 @@ npm run lint
 | POST | `/api/v1/banking/deposit` |
 | POST | `/api/v1/banking/withdraw` |
 | POST | `/api/v1/banking/transfer` |
+| POST | `/api/v1/banking/beneficiary-transfers` |
 | GET | `/api/v1/banking/:accountNumber/balance` |
 | GET | `/api/v1/banking/:accountNumber/balance?at=<ISO-8601 timestamp>` |
 | GET | `/api/v1/banking/:accountNumber/history` |
 
 All routes require a bearer JWT. Deposit, withdrawal, and transfer also require
-a UUID `Idempotency-Key`. The caller must own the relevant account; transfers
-require ownership of both accounts. Ownership failures return 404. See the
+a UUID `Idempotency-Key`. The existing transfer route remains restricted to
+accounts owned by the caller; third-party transfers require a saved active
+beneficiary. See [Phase 8 operations](docs/phase-8-operations.md) for schedule,
+misfire, retry, and statement semantics. Ownership failures return 404. See the
 [API Gateway contract](services/api-gateway/README.md#banking-core-api-v1-contract)
 for response and error behavior.
+
+---
+
+## Beneficiaries
+
+| Method | Endpoint |
+|---------|----------|
+| GET | `/api/v1/beneficiaries` |
+| POST | `/api/v1/beneficiaries` |
+| PATCH | `/api/v1/beneficiaries/:beneficiaryId` |
+
+Third-party recipient accounts must be active and saved by the authenticated
+customer. Account numbers are masked in beneficiary responses.
+
+---
+
+## Scheduled Transfers
+
+| Method | Endpoint |
+|---------|----------|
+| GET | `/api/v1/scheduled-transfers` |
+| POST | `/api/v1/scheduled-transfers` |
+| GET | `/api/v1/scheduled-transfers/:scheduleId/occurrences` |
+| POST | `/api/v1/scheduled-transfers/:scheduleId/occurrences/:occurrenceId/retry` |
+| POST | `/api/v1/scheduled-transfers/:scheduleId/pause` |
+| POST | `/api/v1/scheduled-transfers/:scheduleId/resume` |
+| POST | `/api/v1/scheduled-transfers/:scheduleId/cancel` |
+
+Schedules support one-time, weekly, and monthly UTC execution.
+
+---
+
+## Statements
+
+| Method | Endpoint |
+|---------|----------|
+| GET | `/api/v1/reports/statements/:accountNumber?from=YYYY-MM-DD&to=YYYY-MM-DD` |
+
+Statements are read-only, ledger-derived JSON by default; `format=csv` returns
+a CSV download.
 
 ---
 
@@ -720,6 +763,7 @@ The project includes automated tests covering:
 - Concurrency
 - Health Checks
 - Notification consent, delivery deduplication, retries, and replay
+- Beneficiary authorization, scheduled-transfer idempotency/retry, and ledger statements
 
 Current test suite:
 
