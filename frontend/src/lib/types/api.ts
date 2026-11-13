@@ -144,3 +144,31 @@ export interface PaginationMeta {
   totalRecords: number;
   totalPages: number;
 }
+
+export interface NotificationPreference {
+  emailEnabled: boolean;
+  consentedAt: string | null;
+  revokedAt: string | null;
+}
+
+export interface StatementEntry {
+  id: string;
+  createdAt: string;
+  description: string | null;
+  entryType: 'DEBIT' | 'CREDIT';
+  amount: string;
+  runningBalance: string;
+}
+
+export interface StatementReport {
+  accountNumberMasked: string;
+  accountNumber: string;
+  from: string;
+  to: string;
+  openingBalance: string;
+  totalDebits: string;
+  totalCredits: string;
+  closingBalance: string;
+  entries: StatementEntry[];
+  generatedAt: string;
+}

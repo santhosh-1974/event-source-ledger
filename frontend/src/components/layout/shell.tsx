@@ -5,12 +5,17 @@ import { Header } from './header';
 
 const pageTitles: Record<string, string> = {
   '/': 'Overview',
-  '/customers': 'Customers',
   '/accounts': 'Accounts',
+  '/payments': 'Payments',
+  '/transactions': 'Transactions',
+  '/statements': 'Statements',
+  '/notifications': 'Notifications',
+  '/security': 'Security',
+  '/profile': 'Profile',
+  '/customers': 'Customers',
   '/deposits': 'Deposits',
   '/withdrawals': 'Withdrawals',
   '/transfers': 'Transfers',
-  '/transactions': 'Transactions',
   '/ledger': 'Ledger History',
   '/api-docs': 'API Documentation',
 };

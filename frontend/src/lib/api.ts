@@ -75,6 +75,19 @@ export const api = {
     get: (id: string) => apiClient.getTransaction(id),
   },
 
+  notifications: {
+    getPreferences: () => apiClient.getNotificationPreferences(),
+    updatePreferences: (data: { emailEnabled: boolean; consent: boolean }) =>
+      apiClient.updateNotificationPreferences(data),
+  },
+
+  reports: {
+    getStatement: (accountNumber: string, from: string, to: string) =>
+      apiClient.getStatement(accountNumber, from, to),
+    downloadCsv: (accountNumber: string, from: string, to: string) =>
+      apiClient.downloadStatementCsv(accountNumber, from, to),
+  },
+
   health: {
     check: () => apiClient.healthCheck(),
   },

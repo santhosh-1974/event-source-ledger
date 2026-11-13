@@ -14,6 +14,10 @@ import { Transfers } from '../features/transfers/transfers';
 import { Transactions } from '../features/transactions/transactions';
 import { TransactionDetail } from '../features/transactions/transaction-detail';
 import { LedgerHistory } from '../features/ledger/ledger-history';
+import { Payments } from '../features/payments/payments';
+import { Statements } from '../features/statements/statements';
+import { Notifications } from '../features/notifications/notifications';
+import { Security } from '../features/security/security';
 
 const router = createBrowserRouter([
   {
@@ -27,13 +31,18 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <Dashboard /> },
           { path: 'customers', element: <Customers /> },
+          { path: 'profile', element: <Customers /> },
           { path: 'accounts', element: <Accounts /> },
           { path: 'accounts/:accountId', element: <AccountDetail /> },
+          { path: 'payments', element: <Payments /> },
           { path: 'deposits', element: <Deposits /> },
           { path: 'withdrawals', element: <Withdrawals /> },
           { path: 'transfers', element: <Transfers /> },
           { path: 'transactions', element: <Transactions /> },
           { path: 'transactions/:transactionId', element: <TransactionDetail /> },
+          { path: 'statements', element: <Statements /> },
+          { path: 'notifications', element: <Notifications /> },
+          { path: 'security', element: <Security /> },
           { path: 'ledger', element: <LedgerHistory /> },
           {
             path: 'api-docs',

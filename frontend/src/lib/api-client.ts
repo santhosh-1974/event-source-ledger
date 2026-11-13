@@ -14,6 +14,8 @@ import type {
   TransactionHistoryResult,
   TransactionDetails,
   PaginationParams,
+  NotificationPreference,
+  StatementReport,
 } from './types/api';
 
 export const AUTH_UNAUTHORIZED_EVENT = 'ledger:unauthorized';
@@ -305,6 +307,53 @@ class ApiClient {
 
   async getTransaction(transactionId: string): Promise<TransactionDetails> {
     return this.request(`/transactions/${encodeURIComponent(transactionId)}`);
+  }
+
+  async getNotificationPreferences(): Promise<NotificationPreference> {
+    return this.request('/notifications/preferences');
+  }
+
+  async updateNotificationPreferences(
+    data: { emailEnabled: boolean; consent: boolean }
+  ): Promise<NotificationPreference> {
+    return this.request('/notifications/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getStatement(
+    accountNumber: string,
+    from: string,
+    to: string
+  ): Promise<StatementReport> {
+    const query = new URLSearchParams({ from, to });
+    return this.request(`/reports/statements/${encodeURIComponent(accountNumber)}?${query.toString()}`);
+  }
+
+  async downloadStatementCsv(accountNumber: string, from: string, to: string): Promise<string> {
+    const query = new URLSearchParams({ from, to, format: 'csv' });
+    const response = await fetch(
+      `${this.baseUrl}/reports/statements/${encodeURIComponent(accountNumber)}?${query.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') ?? '';
+      let errorMessage = 'Failed to load statement';
+      if (contentType.includes('application/json')) {
+        const payload = (await response.json()) as Record<string, unknown>;
+        errorMessage = String(payload.message ?? payload.error ?? errorMessage);
+      }
+      throw toApiError(response.status, errorMessage);
+    }
+
+    return response.text();
   }
 
   async healthCheck(): Promise<{ status: string }> {

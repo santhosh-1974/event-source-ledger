@@ -31,7 +31,7 @@ the proposed target are distinguished in [architecture.md](./architecture.md).
 | 6 | Transactional Outbox and SQS | **Complete (locally validated; AWS deployment remains in Phase 11)** |
 | 7 | Notification Service and SES | **Complete locally; backend tests, service builds, Compose configuration, and Terraform validation pass. Docker image build not run because the Docker daemon is unavailable; AWS deployment remains in Phase 11.** |
 | 8 | Advanced banking operations and reporting | **Complete locally** — beneficiary validation, scheduled transfers, retry rules, and statements are implemented and verified against the source ledger. |
-| 9 | Professional banking frontend | **In progress / partial** — current banking UI exists; planned navigation and capabilities remain incomplete. |
+| 9 | Professional banking frontend | **Complete locally** — dashboard, payments, statements, notifications, security, and profile views are now wired into the authenticated banking frontend. |
 | 10 | Containerization and CI/CD | **Partial** — local seven-service Docker Compose, CI validation, and all service build checks exist; image publishing and production hardening remain. |
 | 11 | AWS deployment | **Not started** |
 | 12 | Monitoring, security, and performance | **Not started** |
@@ -308,7 +308,7 @@ coverage all passed in this environment.
 
 ## Phase 9 — Professional banking frontend
 
-**Status: In progress / partial**
+**Status: Complete locally**
 
 ### Work
 
@@ -328,6 +328,17 @@ coverage all passed in this environment.
 - UI states and accessibility are tested.
 - No internal service URL or provisioning capability is embedded in the
   browser bundle.
+
+### Delivered and validated
+
+The frontend now exposes a more complete professional banking experience:
+Overview, Accounts, Payments, Transactions, Statements, Notifications,
+Security, and Profile all route through the authenticated shell, with customer
+profile and notification preference integrations using the public Gateway.
+Statement generation and CSV export call the Banking Core reporting endpoints,
+while the dashboard and account views continue to preserve the working bank
+journey. User-visible loading and error states are present, and the frontend
+build plus Vitest suite pass in this environment.
 
 ## Phase 10 — Containerization and CI/CD
 

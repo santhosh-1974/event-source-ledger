@@ -10,6 +10,11 @@ import {
   Receipt,
   History,
   BookOpen,
+  BadgeDollarSign,
+  FileText,
+  Bell,
+  Shield,
+  UserRound,
   Menu,
   X,
 } from 'lucide-react';
@@ -17,14 +22,19 @@ import { Button } from '../ui/button';
 
 const navigation = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
-  { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Accounts', href: '/accounts', icon: Wallet },
+  { name: 'Payments', href: '/payments', icon: BadgeDollarSign },
+  { name: 'Transactions', href: '/transactions', icon: Receipt },
+  { name: 'Statements', href: '/statements', icon: FileText },
+  { name: 'Notifications', href: '/notifications', icon: Bell },
+  { name: 'Security', href: '/security', icon: Shield },
+  { name: 'Profile', href: '/profile', icon: UserRound },
+  { name: 'Ledger History', href: '/ledger', icon: History },
+  { name: 'API Docs', href: '/api-docs', icon: BookOpen },
+  { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Deposits', href: '/deposits', icon: ArrowDownCircle },
   { name: 'Withdrawals', href: '/withdrawals', icon: ArrowUpCircle },
   { name: 'Transfers', href: '/transfers', icon: ArrowRightLeft },
-  { name: 'Transactions', href: '/transactions', icon: Receipt },
-  { name: 'Ledger History', href: '/ledger', icon: History },
-  { name: 'API Docs', href: '/api-docs', icon: BookOpen },
 ];
 
 interface SidebarProps {
